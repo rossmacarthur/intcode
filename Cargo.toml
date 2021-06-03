@@ -1,2 +1,12 @@
-[workspace]
-members = []
+[package]
+name = "intcode"
+version = "0.0.0"
+authors = ["Ross MacArthur <ross@macarthur.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+anyhow = "1.0.40"
+
+[dev-dependencies]
+pretty_assertions = "0.7.2"
