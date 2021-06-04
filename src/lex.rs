@@ -9,9 +9,9 @@ use anyhow::{bail, Result};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     /// The start index.
-    m: usize,
+    pub m: usize,
     /// The end index.
-    n: usize,
+    pub n: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,9 +37,9 @@ pub enum Kind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     /// The kind of token.
-    kind: Kind,
+    pub kind: Kind,
     /// The location in the original string.
-    span: Span,
+    pub span: Span,
 }
 
 /// An iterator over (index, char) in a string.
@@ -161,6 +161,20 @@ impl<'i> Tokens<'i> {
             None => None,
         };
         Ok(token)
+    }
+
+    /// Finds the next token matching the predicate.
+    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<Token>>
+    where
+        P: FnMut(&Kind) -> bool,
+    {
+        loop {
+            match self.next()? {
+                Some(token) if predicate(&token.kind) => break Ok(Some(token)),
+                None => break Ok(None),
+                Some(_) => continue,
+            }
+        }
     }
 }
 
