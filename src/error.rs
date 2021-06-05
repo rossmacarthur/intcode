@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::path::Path;
 
 use peter::Stylize;
 use thiserror::Error;
@@ -42,7 +43,7 @@ impl Error {
         }
     }
 
-    pub fn pretty(&self, input: &str, filename: &str) -> String {
+    pub fn pretty(&self, input: &str, filename: &Path) -> String {
         let Self { span, msg } = self;
 
         let lines: Vec<_> = input.split_terminator('\n').collect();
@@ -67,7 +68,7 @@ impl Error {
             "",
             pad = num.chars().count(),
             arrow = "-->".bold().blue(),
-            filename = filename,
+            filename = filename.display(),
             line = line + 1,
             col = col + 1,
             pipe = "|".bold().blue(),
