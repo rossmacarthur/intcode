@@ -47,3 +47,14 @@ pub struct Stmt<'i> {
 pub struct Program<'i> {
     pub stmts: Vec<Stmt<'i>>,
 }
+
+impl Instr<'_> {
+    pub fn opcode(&self) -> i64 {
+        match *self {
+            Self::Add(_, _, _) => 1,
+            Self::Multiply(_, _, _) => 2,
+            Self::Halt => 99,
+            i => panic!("no opcode for `{:?}`", i),
+        }
+    }
+}

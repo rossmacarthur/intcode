@@ -7,6 +7,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.40"
+indexmap = "1.6.2"
 peter = "0.2.1"
 thiserror = "1.0.25"
 

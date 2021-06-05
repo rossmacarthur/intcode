@@ -1,5 +1,7 @@
 //! Parse the input into a syntax tree.
 
+use std::collections::HashSet;
+
 use crate::ast::{Instr, Param, Program, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Kind, Span, Token, Tokens};
@@ -9,6 +11,8 @@ struct Parser<'i> {
     input: &'i str,
     /// An iterator over the tokens in the input.
     tokens: Tokens<'i>,
+    /// Labels that we have already seen.
+    labels: HashSet<&'i str>,
 }
 
 fn is_not_whitespace_or_comment(k: &Kind) -> bool {
@@ -22,7 +26,11 @@ fn is_interesting(k: &Kind) -> bool {
 impl<'i> Parser<'i> {
     fn new(input: &'i str) -> Self {
         let tokens = Tokens::new(input);
-        Self { input, tokens }
+        Self {
+            input,
+            tokens,
+            labels: HashSet::new(),
+        }
     }
 
     fn str(&self, span: Span) -> &'i str {
@@ -131,7 +139,11 @@ impl<'i> Parser<'i> {
             Some(t) if t.kind == Kind::Ident => {
                 self.eat_kind(Kind::Ident)?;
                 self.eat_kind(Kind::Colon)?;
-                Some(self.str(t.span))
+                let label = self.str(t.span);
+                if !self.labels.insert(label) {
+                    return Err(Error::new(t.span, "label already used"));
+                }
+                Some(label)
             }
             _ => None,
         };

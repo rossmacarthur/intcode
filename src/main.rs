@@ -1,4 +1,5 @@
 mod ast;
+mod compile;
 mod error;
 mod lex;
 mod parse;
@@ -11,9 +12,9 @@ use anyhow::Result;
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
-    match parse::program(&input) {
+    match compile::program(&input) {
         Ok(prog) => {
-            println!("{:#?}", prog);
+            println!("{}", prog);
         }
         Err(err) => {
             println!("{}", err.pretty(&input, "<input>"));
