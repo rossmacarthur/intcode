@@ -3,7 +3,7 @@
 use std::ops;
 use std::str;
 
-use anyhow::{bail, Result};
+use crate::error::{Error, Result};
 
 /// Represents a location in the original input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +20,8 @@ pub enum Kind {
     Colon,
     /// `,`
     Comma,
+    /// `-`
+    Minus,
     /// An LF line ending (0x0A).
     Newline,
     /// A sequence of tab (0x09) and/or spaces (0x20).
@@ -29,7 +31,7 @@ pub enum Kind {
     /// A variable or label identifier, like `start` or `rb`.
     Ident,
     /// An instruction mnemonic, like `EQ` or `HLT`.
-    Opcode,
+    Mnemonic,
     /// Comment contents including the `;` prefix.
     Comment,
 }
@@ -52,8 +54,6 @@ struct CharIndices<'i> {
 /// An iterator over input tokens.
 #[derive(Debug, Clone)]
 pub struct Tokens<'i> {
-    /// The original input string.
-    input: &'i str,
     /// The input as (index, char) values.
     iter: CharIndices<'i>,
 }
@@ -61,6 +61,41 @@ pub struct Tokens<'i> {
 ////////////////////////////////////////////////////////////////////////////////
 // Implementations
 ////////////////////////////////////////////////////////////////////////////////
+
+impl Span {
+    pub fn width(&self) -> usize {
+        self.n - self.m
+    }
+
+    pub fn range(&self) -> ops::Range<usize> {
+        self.m..self.n
+    }
+}
+
+impl From<ops::Range<usize>> for Span {
+    fn from(r: ops::Range<usize>) -> Self {
+        Self {
+            m: r.start,
+            n: r.end,
+        }
+    }
+}
+
+impl Kind {
+    pub fn human(&self) -> &'static str {
+        match *self {
+            Self::Colon => "a colon",
+            Self::Comma => "a comma",
+            Self::Minus => "a minus",
+            Self::Newline => "a newline",
+            Self::Whitespace => "whitespace",
+            Self::Number => "a number",
+            Self::Ident => "an identifier",
+            Self::Mnemonic => "a mnemonic",
+            Self::Comment => "a comment",
+        }
+    }
+}
 
 impl Token {
     /// Construct a new token with the given kind and span.
@@ -114,7 +149,7 @@ impl<'i> Tokens<'i> {
     /// Construct a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
         let iter = CharIndices::new(input);
-        Self { input, iter }
+        Self { iter }
     }
 
     /// Eats the next character if the predicate is satisfied.
@@ -143,21 +178,22 @@ impl<'i> Tokens<'i> {
             Some((i, ';')) => Some(self.eat_token(Kind::Comment, i, |&c| c != '\n')),
             Some((i, ':')) => Some(Token::new(Kind::Colon, i, i + 1)),
             Some((i, ',')) => Some(Token::new(Kind::Comma, i, i + 1)),
+            Some((i, '-')) => Some(Token::new(Kind::Minus, i, i + 1)),
             Some((i, '\n')) => Some(Token::new(Kind::Newline, i, i + 1)),
             Some((i, c)) if c.is_ascii_whitespace() => {
                 Some(self.eat_token(Kind::Whitespace, i, char::is_ascii_whitespace))
             }
-            Some((i, c)) if matches!(c, '0'..='9' | '-') => {
+            Some((i, c)) if c.is_ascii_digit() => {
                 Some(self.eat_token(Kind::Number, i, char::is_ascii_digit))
             }
             Some((i, c)) if c.is_ascii_lowercase() => {
                 Some(self.eat_token(Kind::Ident, i, char::is_ascii_lowercase))
             }
             Some((i, c)) if c.is_ascii_uppercase() => {
-                Some(self.eat_token(Kind::Opcode, i, char::is_ascii_uppercase))
+                Some(self.eat_token(Kind::Mnemonic, i, char::is_ascii_uppercase))
             }
 
-            Some((i, c)) => bail!("unexpected character `{}` at index {}", c, i),
+            Some((i, _)) => return Err(Error::new(i..(i + 1), "unexpected character")),
             None => None,
         };
         Ok(token)
@@ -206,7 +242,7 @@ mod tests {
                 Token::new(Kind::Ident, 0, 5),
                 Token::new(Kind::Colon, 5, 6),
                 Token::new(Kind::Newline, 6, 7),
-                Token::new(Kind::Opcode, 7, 10),
+                Token::new(Kind::Mnemonic, 7, 10),
                 Token::new(Kind::Whitespace, 10, 11),
                 Token::new(Kind::Ident, 11, 14),
                 Token::new(Kind::Comma, 14, 15),
@@ -224,7 +260,9 @@ mod tests {
 
     #[test]
     fn error() {
-        let err = Tokens::new("@").next().unwrap_err();
-        assert_eq!(err.to_string(), "unexpected character `@` at index 0");
+        assert_eq!(
+            Tokens::new("@").next().unwrap_err(),
+            Error::new(0..1, "unexpected character")
+        );
     }
 }
