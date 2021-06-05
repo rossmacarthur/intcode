@@ -145,6 +145,10 @@ impl<'i> ops::DerefMut for CharIndices<'i> {
     }
 }
 
+fn is_identifier(c: &char) -> bool {
+    matches!(c, 'a'..='z' | '_')
+}
+
 impl<'i> Tokens<'i> {
     /// Construct a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
@@ -153,7 +157,7 @@ impl<'i> Tokens<'i> {
     }
 
     /// Eats the next character if the predicate is satisfied.
-    fn eat_if<P>(&mut self, predicate: P) -> bool
+    fn lex_if<P>(&mut self, predicate: P) -> bool
     where
         P: Fn(&char) -> bool,
     {
@@ -164,33 +168,33 @@ impl<'i> Tokens<'i> {
     }
 
     /// Eats the next token, including all characters satisfying the predicate.
-    fn eat_token<P>(&mut self, kind: Kind, i: usize, predicate: P) -> Token
+    fn lex_token<P>(&mut self, kind: Kind, i: usize, predicate: P) -> Token
     where
         P: Fn(&char) -> bool + Copy,
     {
-        while self.eat_if(predicate) {}
+        while self.lex_if(predicate) {}
         Token::new(kind, i, self.iter.peek_index())
     }
 
     /// Returns the next token in the iterator.
     pub fn next(&mut self) -> Result<Option<Token>> {
         let token = match self.iter.next() {
-            Some((i, ';')) => Some(self.eat_token(Kind::Comment, i, |&c| c != '\n')),
+            Some((i, ';')) => Some(self.lex_token(Kind::Comment, i, |&c| c != '\n')),
             Some((i, ':')) => Some(Token::new(Kind::Colon, i, i + 1)),
             Some((i, ',')) => Some(Token::new(Kind::Comma, i, i + 1)),
             Some((i, '-')) => Some(Token::new(Kind::Minus, i, i + 1)),
             Some((i, '\n')) => Some(Token::new(Kind::Newline, i, i + 1)),
             Some((i, c)) if c.is_ascii_whitespace() => {
-                Some(self.eat_token(Kind::Whitespace, i, char::is_ascii_whitespace))
+                Some(self.lex_token(Kind::Whitespace, i, char::is_ascii_whitespace))
             }
             Some((i, c)) if c.is_ascii_digit() => {
-                Some(self.eat_token(Kind::Number, i, char::is_ascii_digit))
+                Some(self.lex_token(Kind::Number, i, char::is_ascii_digit))
             }
-            Some((i, c)) if c.is_ascii_lowercase() => {
-                Some(self.eat_token(Kind::Ident, i, char::is_ascii_lowercase))
+            Some((i, c)) if is_identifier(&c) => {
+                Some(self.lex_token(Kind::Ident, i, is_identifier))
             }
             Some((i, c)) if c.is_ascii_uppercase() => {
-                Some(self.eat_token(Kind::Mnemonic, i, char::is_ascii_uppercase))
+                Some(self.lex_token(Kind::Mnemonic, i, char::is_ascii_uppercase))
             }
 
             Some((i, _)) => return Err(Error::new(i..(i + 1), "unexpected character")),
