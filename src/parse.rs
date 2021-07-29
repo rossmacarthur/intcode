@@ -100,14 +100,24 @@ impl<'i> Parser<'i> {
         }
     }
 
+    /// Consumes the next two parameters.
+    fn eat_params2(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
+        let x = self.eat_param()?;
+        self.eat_kind(Kind::Comma)?;
+        let y = self.eat_param()?;
+        self.eat_kind(Kind::Comma)?;
+        let z = self.eat_param()?;
+        Ok((x, y, z))
+    }
+
     /// Consumes the next three parameters.
-    fn eat_params(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
-        let a = self.eat_param()?;
+    fn eat_params3(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
+        let x = self.eat_param()?;
         self.eat_kind(Kind::Comma)?;
-        let b = self.eat_param()?;
+        let y = self.eat_param()?;
         self.eat_kind(Kind::Comma)?;
-        let c = self.eat_param()?;
-        Ok((a, b, c))
+        let z = self.eat_param()?;
+        Ok((x, y, z))
     }
 
     /// Consumes the next instruction.
@@ -116,12 +126,40 @@ impl<'i> Parser<'i> {
         let opcode = self.str(t.span);
         let instr = match opcode {
             "ADD" => {
-                let (a, b, c) = self.eat_params()?;
-                Instr::Add(a, b, c)
+                let (x, y, z) = self.eat_params3()?;
+                Instr::Add(x, y, z)
             }
             "MUL" => {
-                let (a, b, c) = self.eat_params()?;
-                Instr::Multiply(a, b, c)
+                let (x, y, z) = self.eat_params3()?;
+                Instr::Multiply(x, y, z)
+            }
+            "JNZ" => {
+                let (x, y) = self.eat_params2()?;
+                Instr::JumpNonZero(x, y)
+            }
+            "JZ" => {
+                let (x, y) = self.eat_params2()?;
+                Instr::JumpZero(x, y)
+            }
+            "LT" => {
+                let (x, y, z) = self.eat_params3()?;
+                Instr::LessThan(x, y, z)
+            }
+            "EQ" => {
+                let (x, y, z) = self.eat_params3()?;
+                Instr::Equal(x, y, z)
+            }
+            "IN" => {
+                let p = self.eat_param()?;
+                Instr::Input(p)
+            }
+            "OUT" => {
+                let p = self.eat_param()?;
+                Instr::Output(p)
+            }
+            "ARB" => {
+                let p = self.eat_param()?;
+                Instr::AdjustRelativeBase(p)
             }
             "DB" => {
                 let p = self.eat_param()?;

@@ -23,26 +23,38 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
             }
         }
 
-        match instr {
-            Instr::Add(x, y, z) | Instr::Multiply(x, y, z) => {
-                output.push(instr.opcode());
-                for &p in &[x, y, z] {
-                    output.push(match p {
-                        Param::Exact(v) => v,
-                        Param::Ident(i) => {
-                            idents.entry(i).or_default().refs.push(output.len());
-                            0
-                        }
-                    });
-                }
-            }
-            Instr::DataByte(p) => output.push(match p {
+        let mut param = |output: &mut Vec<_>, p| {
+            output.push(match p {
                 Param::Exact(v) => v,
                 Param::Ident(i) => {
                     idents.entry(i).or_default().refs.push(output.len());
                     0
                 }
-            }),
+            });
+        };
+
+        match instr {
+            Instr::Add(x, y, z)
+            | Instr::Multiply(x, y, z)
+            | Instr::LessThan(x, y, z)
+            | Instr::Equal(x, y, z) => {
+                output.push(instr.opcode());
+                param(&mut output, x);
+                param(&mut output, y);
+                param(&mut output, z);
+            }
+            Instr::JumpNonZero(x, y) | Instr::JumpZero(x, y) => {
+                output.push(instr.opcode());
+                param(&mut output, x);
+                param(&mut output, y);
+            }
+            Instr::Input(p) | Instr::Output(p) | Instr::AdjustRelativeBase(p) => {
+                output.push(instr.opcode());
+                param(&mut output, p);
+            }
+            Instr::DataByte(p) => {
+                param(&mut output, p);
+            }
             Instr::Halt => output.push(instr.opcode()),
         }
     }

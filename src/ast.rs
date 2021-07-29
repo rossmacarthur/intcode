@@ -11,7 +11,7 @@ pub enum Param<'i> {
     /// ```
     Ident(&'i str),
 
-    /// A parameter that refers to an exact location in the program.
+    /// A parameter that is an exact number.
     ///
     /// For example the '7' in the following code:
     /// ```asm
@@ -23,10 +23,26 @@ pub enum Param<'i> {
 /// An instruction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instr<'i> {
-    /// Adds the first two parameters together storing the result in the third.
+    /// Adds two parameters together.
     Add(Param<'i>, Param<'i>, Param<'i>),
-    /// Multiplies the first two parameters together storing the result in the third.
+    /// Multiplies two parameters together.
     Multiply(Param<'i>, Param<'i>, Param<'i>),
+    /// Move the instruction pointer if the result is non-zero.
+    JumpNonZero(Param<'i>, Param<'i>),
+    /// Move the instruction pointer if the result is zero.
+    JumpZero(Param<'i>, Param<'i>),
+    /// Compare two parameters.
+    LessThan(Param<'i>, Param<'i>, Param<'i>),
+    /// Check if two parameters are equal.
+    Equal(Param<'i>, Param<'i>, Param<'i>),
+
+    /// Fetch external data.
+    Input(Param<'i>),
+    /// Output external data.
+    Output(Param<'i>),
+    /// Adjust the relative base by the given amount.
+    AdjustRelativeBase(Param<'i>),
+
     /// Places raw data in the program.
     DataByte(Param<'i>),
     /// Halts the program.
@@ -51,8 +67,15 @@ pub struct Program<'i> {
 impl Instr<'_> {
     pub fn opcode(&self) -> i64 {
         match *self {
-            Self::Add(_, _, _) => 1,
-            Self::Multiply(_, _, _) => 2,
+            Self::Add(..) => 1,
+            Self::Multiply(..) => 2,
+            Self::Input(..) => 3,
+            Self::Output(..) => 4,
+            Self::JumpNonZero(..) => 5,
+            Self::JumpZero(..) => 6,
+            Self::LessThan(..) => 7,
+            Self::Equal(..) => 8,
+            Self::AdjustRelativeBase(..) => 9,
             Self::Halt => 99,
             i => panic!("no opcode for `{:?}`", i),
         }
