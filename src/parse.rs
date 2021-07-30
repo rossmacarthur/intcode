@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::ast::{Instr, Param, Program, Stmt};
+use crate::ast::{Instr, Mode, Param, Program, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Kind, Span, Token, Tokens};
 
@@ -21,6 +21,20 @@ fn is_not_whitespace_or_comment(k: &Kind) -> bool {
 
 fn is_interesting(k: &Kind) -> bool {
     !matches!(*k, Kind::Newline | Kind::Whitespace | Kind::Comment)
+}
+
+enum RawParam<'i> {
+    Ident(&'i str, i64),
+    Number(i64),
+}
+
+impl<'i> RawParam<'i> {
+    fn with_mode(self, mode: Mode) -> Param<'i> {
+        match self {
+            Self::Ident(ident, offset) => Param::Ident(mode, ident, offset),
+            Self::Number(value) => Param::Number(mode, value),
+        }
+    }
 }
 
 impl<'i> Parser<'i> {
@@ -77,37 +91,69 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
-    /// Consumes the next parameter.
-    fn eat_param(&mut self) -> Result<Param<'i>> {
+    fn eat_raw_param(&mut self) -> Result<RawParam<'i>> {
         match self.eat()? {
             t if t.kind == Kind::Minus => {
                 let t = self.eat_kind(Kind::Number)?;
                 let value: i64 = self.str(t.span).parse().unwrap();
-                Ok(Param::Exact(-value))
+                Ok(RawParam::Number(-value))
             }
             t if t.kind == Kind::Number => {
                 let value = self.str(t.span).parse().unwrap();
-                Ok(Param::Exact(value))
+                Ok(RawParam::Number(value))
             }
             t if t.kind == Kind::Ident => {
-                let value = self.str(t.span);
-                Ok(Param::Ident(value))
+                let ident = self.str(t.span);
+                let offset = match self.peek()? {
+                    Some(t) if t.kind == Kind::Plus => {
+                        self.eat_kind(Kind::Plus)?;
+                        let t = self.eat_kind(Kind::Number)?;
+                        let value: i64 = self.str(t.span).parse().unwrap();
+                        value
+                    }
+                    Some(t) if t.kind == Kind::Minus => {
+                        self.eat_kind(Kind::Minus)?;
+                        let t = self.eat_kind(Kind::Number)?;
+                        let value: i64 = self.str(t.span).parse().unwrap();
+                        -value
+                    }
+                    _ => 0,
+                };
+                Ok(RawParam::Ident(ident, offset))
             }
             t => Err(Error::new(
                 t.span,
-                format!("expected a parameter, found {}", t.kind.human()),
+                format!("expected a number or identifier, found {}", t.kind.human()),
             )),
         }
     }
 
+    /// Consumes the next parameter.
+    fn eat_param(&mut self) -> Result<Param<'i>> {
+        match self.peek()? {
+            Some(t) if t.kind == Kind::Tilde => {
+                self.eat_kind(Kind::Tilde)?;
+                let p = self.eat_raw_param()?;
+                Ok(p.with_mode(Mode::Relative))
+            }
+            Some(t) if t.kind == Kind::Hash => {
+                self.eat_kind(Kind::Hash)?;
+                let p = self.eat_raw_param()?;
+                Ok(p.with_mode(Mode::Immediate))
+            }
+            _ => {
+                let p = self.eat_raw_param()?;
+                Ok(p.with_mode(Mode::Positional))
+            }
+        }
+    }
+
     /// Consumes the next two parameters.
-    fn eat_params2(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
+    fn eat_params2(&mut self) -> Result<(Param<'i>, Param<'i>)> {
         let x = self.eat_param()?;
         self.eat_kind(Kind::Comma)?;
         let y = self.eat_param()?;
-        self.eat_kind(Kind::Comma)?;
-        let z = self.eat_param()?;
-        Ok((x, y, z))
+        Ok((x, y))
     }
 
     /// Consumes the next three parameters.
@@ -210,7 +256,7 @@ impl<'i> Parser<'i> {
 }
 
 /// Parse intcode assembly.
-pub fn program<'i>(input: &'i str) -> Result<Program<'i>> {
+pub fn program(input: &str) -> Result<Program> {
     Parser::new(input).eat_program()
 }
 
@@ -238,11 +284,19 @@ c: DB 50"#;
                 stmts: vec![
                     Stmt {
                         label: None,
-                        instr: Instr::Add(Param::Ident("a"), Param::Ident("b"), Param::Exact(3))
+                        instr: Instr::Add(
+                            Param::Ident(Mode::Positional, "a", 0),
+                            Param::Ident(Mode::Positional, "b", 0),
+                            Param::Number(Mode::Positional, 3)
+                        )
                     },
                     Stmt {
                         label: None,
-                        instr: Instr::Multiply(Param::Exact(3), Param::Ident("c"), Param::Exact(0))
+                        instr: Instr::Multiply(
+                            Param::Number(Mode::Positional, 3),
+                            Param::Ident(Mode::Positional, "c", 0),
+                            Param::Number(Mode::Positional, 0)
+                        )
                     },
                     Stmt {
                         label: None,
@@ -250,15 +304,15 @@ c: DB 50"#;
                     },
                     Stmt {
                         label: Some("a"),
-                        instr: Instr::DataByte(Param::Exact(30)),
+                        instr: Instr::DataByte(Param::Number(Mode::Positional, 30)),
                     },
                     Stmt {
                         label: Some("b"),
-                        instr: Instr::DataByte(Param::Exact(40)),
+                        instr: Instr::DataByte(Param::Number(Mode::Positional, 40)),
                     },
                     Stmt {
                         label: Some("c"),
-                        instr: Instr::DataByte(Param::Exact(50)),
+                        instr: Instr::DataByte(Param::Number(Mode::Positional, 50)),
                     },
                 ]
             }
@@ -271,7 +325,12 @@ c: DB 50"#;
             ("ADD", (3, 4), "unexpected end of input"),
             ("ADD @", (4, 5), "unexpected character"),
             ("ADD x y", (6, 7), "expected a comma, found an identifier"),
-            ("ADD MUL", (4, 7), "expected a parameter, found a mnemonic"),
+            (
+                "ADD MUL",
+                (4, 7),
+                "expected a number or identifier, found a mnemonic",
+            ),
+            ("ADD #-a", (6, 7), "expected a number, found an identifier"),
             ("YUP", (0, 3), "unknown operation mnemonic"),
         ];
         for (asm, (m, n), msg) in tests {

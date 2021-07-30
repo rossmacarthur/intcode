@@ -14,21 +14,22 @@ the order they are introduced in Advent of Code.
 | -------- | -------------------------------------------- |
 | ADD      | Adds two operands together                   |
 | MUL      | Multiplies two operands together             |
-| IN       | Read a single number                         |
-| OUT      | Write a single number                        |
-| JNZ      | Jump if the operand is non-zero              |
-| JZ       | Jump if the operand is zero                  |
-| LT       | Check if one operand is less than another    |
-| EQ       | Check if two operands are equal              |
+| IN       | Reads a single number                        |
+| OUT      | Writes a single number                       |
+| JNZ      | Jumps if the operand is non-zero             |
+| JZ       | Jumps if the operand is zero                 |
+| LT       | Checks if one operand is less than another   |
+| EQ       | Checks if two operands are equal             |
 | ARB      | Adjusts the relative base to the given value |
-| HLT      | End the program                              |
+| HLT      | Ends the program                             |
 
 There are three ways to specify the operands for different opcodes.
 
-| Operand type | Example                                |
-| ------------ | -------------------------------------- |
-| Identifier   | `x` specifies the address of label `x` |
-| Exact        | `19` specifies the value at address 19 |
+| Operand type | Examples                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| Positional   | `19` specifies the value at address 19. `x+3` specifies the value at the label "x" with an offset of 3. |
+| Immediate    | `#19` specifies the exact value 19. `#x+3` specifies the exact "x" label address plus 3.                |
+| Relative     | `~19` specifies the value at the relative base address with an offset of 19.                            |
 
 ## License
 

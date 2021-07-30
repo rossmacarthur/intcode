@@ -1,15 +1,24 @@
 /// Abstract representation of assembly code.
 
+/// The parameter mode.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Mode {
+    Positional,
+    Immediate,
+    Relative,
+}
+
 /// A parameter in an instruction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Param<'i> {
-    /// A parameter that refers to a variable or label.
+    /// A parameter that refers to a variable or label, optionally with an
+    /// offset.
     ///
-    /// For example the 'x' in the following code:
+    /// For example the 'x+3' in the following code:
     /// ```asm
-    /// ADD 0, 1, x
+    /// ADD 0, 1, x+3
     /// ```
-    Ident(&'i str),
+    Ident(Mode, &'i str, i64),
 
     /// A parameter that is an exact number.
     ///
@@ -17,7 +26,7 @@ pub enum Param<'i> {
     /// ```asm
     /// ADD x, y, 7
     /// ```
-    Exact(i64),
+    Number(Mode, i64),
 }
 
 /// An instruction.
@@ -62,6 +71,16 @@ pub struct Stmt<'i> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program<'i> {
     pub stmts: Vec<Stmt<'i>>,
+}
+
+impl From<Mode> for i64 {
+    fn from(mode: Mode) -> i64 {
+        match mode {
+            Mode::Positional => 0,
+            Mode::Immediate => 1,
+            Mode::Relative => 2,
+        }
+    }
 }
 
 impl Instr<'_> {

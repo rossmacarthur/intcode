@@ -20,13 +20,19 @@ pub enum Kind {
     Colon,
     /// `,`
     Comma,
+    /// `#`
+    Hash,
+    /// `+`
+    Plus,
     /// `-`
     Minus,
+    /// `~`
+    Tilde,
     /// An LF line ending (0x0A).
     Newline,
     /// A sequence of tab (0x09) and/or spaces (0x20).
     Whitespace,
-    /// A decimal number like `19` or `-7`.
+    /// A decimal number like `19`.
     Number,
     /// A variable or label identifier, like `start` or `rb`.
     Ident,
@@ -86,7 +92,10 @@ impl Kind {
         match *self {
             Self::Colon => "a colon",
             Self::Comma => "a comma",
+            Self::Hash => "a hash",
+            Self::Plus => "a plus",
             Self::Minus => "a minus",
+            Self::Tilde => "a tilde",
             Self::Newline => "a newline",
             Self::Whitespace => "whitespace",
             Self::Number => "a number",
@@ -182,7 +191,10 @@ impl<'i> Tokens<'i> {
             Some((i, ';')) => Some(self.lex_token(Kind::Comment, i, |&c| c != '\n')),
             Some((i, ':')) => Some(Token::new(Kind::Colon, i, i + 1)),
             Some((i, ',')) => Some(Token::new(Kind::Comma, i, i + 1)),
+            Some((i, '#')) => Some(Token::new(Kind::Hash, i, i + 1)),
+            Some((i, '+')) => Some(Token::new(Kind::Plus, i, i + 1)),
             Some((i, '-')) => Some(Token::new(Kind::Minus, i, i + 1)),
+            Some((i, '~')) => Some(Token::new(Kind::Tilde, i, i + 1)),
             Some((i, '\n')) => Some(Token::new(Kind::Newline, i, i + 1)),
             Some((i, c)) if c.is_ascii_whitespace() => {
                 Some(self.lex_token(Kind::Whitespace, i, char::is_ascii_whitespace))
@@ -239,7 +251,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let tokens = tokenize("start:\nADD tmp, 19, rb \t ; this is a comment\n");
+        let tokens = tokenize("start:\nADD tmp, #19, ~a+1 \t ; this is a comment\n");
         assert_eq!(
             tokens,
             [
@@ -251,13 +263,17 @@ mod tests {
                 Token::new(Kind::Ident, 11, 14),
                 Token::new(Kind::Comma, 14, 15),
                 Token::new(Kind::Whitespace, 15, 16),
-                Token::new(Kind::Number, 16, 18),
-                Token::new(Kind::Comma, 18, 19),
-                Token::new(Kind::Whitespace, 19, 20),
-                Token::new(Kind::Ident, 20, 22),
-                Token::new(Kind::Whitespace, 22, 25),
-                Token::new(Kind::Comment, 25, 44),
-                Token::new(Kind::Newline, 44, 45),
+                Token::new(Kind::Hash, 16, 17),
+                Token::new(Kind::Number, 17, 19),
+                Token::new(Kind::Comma, 19, 20),
+                Token::new(Kind::Whitespace, 20, 21),
+                Token::new(Kind::Tilde, 21, 22),
+                Token::new(Kind::Ident, 22, 23),
+                Token::new(Kind::Plus, 23, 24),
+                Token::new(Kind::Number, 24, 25),
+                Token::new(Kind::Whitespace, 25, 28),
+                Token::new(Kind::Comment, 28, 47),
+                Token::new(Kind::Newline, 47, 48),
             ]
         );
     }
