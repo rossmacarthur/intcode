@@ -12,10 +12,11 @@ atty = "0.2.14"
 clap = "3.0.0-beta.2"
 indexmap = "1.7.0"
 peter = "0.2.1"
+run = { package = "intcode-run", path = "./run" }
 thiserror = "1.0.26"
 
 [dev-dependencies]
 pretty_assertions = "0.7.2"
 
 [workspace]
-members = ["assemble"]
+members = ["assemble", "run"]

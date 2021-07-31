@@ -131,6 +131,7 @@ dependencies = [
  "clap",
  "indexmap",
  "intcode-assemble",
+ "intcode-run",
  "peter",
  "pretty_assertions",
  "thiserror",
@@ -145,6 +146,10 @@ dependencies = [
  "pretty_assertions",
  "thiserror",
 ]
+
+[[package]]
+name = "intcode-run"
+version = "0.0.0"
 
 [[package]]
 name = "lazy_static"

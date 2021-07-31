@@ -1,7 +1,7 @@
-use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
 use std::process;
+use std::{fmt::Display, path::Path};
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
@@ -14,48 +14,63 @@ use peter::Stylize;
     global_setting = AppSettings::GlobalVersion,
     global_setting = AppSettings::VersionlessSubcommands,
 )]
-struct Opt {
-    /// The input file.
-    #[clap()]
-    input: PathBuf,
+enum Opt {
+    Build {
+        /// The input file.
+        #[clap()]
+        input: PathBuf,
 
-    /// The output file.
-    #[clap(long, short)]
-    output: Option<PathBuf>,
+        /// The output file.
+        #[clap(long, short)]
+        output: Option<PathBuf>,
+    },
+    Run {
+        #[clap()]
+        input: PathBuf,
+    },
 }
 
-fn print(header: &str, message: impl Display) {
+fn eprint(header: &str, message: impl Display) {
     if atty::is(atty::Stream::Stdout) {
-        println!("{:>12} {}", header.bold().green(), message);
+        eprintln!("{:>12} {}", header.bold().green(), message);
     } else {
-        println!("{:>12} {}", header, message);
+        eprintln!("{:>12} {}", header, message);
     }
 }
 
-fn main() -> Result<()> {
-    let opt = Opt::parse();
-    let input = fs::read_to_string(&opt.input)?;
+fn assemble(input: &Path) -> Result<String> {
+    let asm = fs::read_to_string(input)?;
+    eprint("Assembling", input.display());
+    assemble::program(&asm).map_err(|err| {
+        eprintln!("{}", err.pretty(&asm, input));
+        eprintln!(
+            "{}{} could not assemble `{}`",
+            "error".bold().red(),
+            ":".bold(),
+            input.display()
+        );
+        process::exit(1);
+    })
+}
 
-    print("Assembling", opt.input.display());
-    match assemble::program(&input) {
-        Ok(prog) => {
-            let p = match opt.output {
-                Some(p) => p,
-                None => opt.input.with_extension("intcode"),
-            };
-            fs::write(&p, prog)?;
-            print("Finished", p.display());
-            process::exit(0);
-        }
-        Err(err) => {
-            println!("{}", err.pretty(&input, &opt.input));
-            println!(
-                "{}{} could not assemble `{}`",
-                "error".bold().red(),
-                ":".bold(),
-                opt.input.display()
-            );
-            process::exit(1);
-        }
+fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
+    let output = output.unwrap_or_else(|| input.with_extension("intcode"));
+    let intcode = assemble(&input)?;
+    fs::write(&output, intcode)?;
+    eprint("Finished", output.display());
+    Ok(())
+}
+
+fn run(input: PathBuf) -> Result<()> {
+    let intcode = assemble(&input)?;
+    eprint("Running", input.display());
+    run::program(&intcode)?;
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    match Opt::parse() {
+        Opt::Build { input, output } => build(input, output),
+        Opt::Run { input } => run(input),
     }
 }

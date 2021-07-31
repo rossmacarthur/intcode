@@ -4,6 +4,36 @@ Compiler and runner for the Intcode computer from Advent of Code 2019.
 
 ## Assembly
 
+### Example
+
+The following outputs "Hello World!".
+
+```asm
+    ARB #message  ; move the relative base to the beginning of our message
+
+loop:
+    OUT ~0        ; output the current character in the message
+    ARB #1        ; go to the next character
+    JNZ ~0, #loop ; if the next character is non-zero then go back to `loop`
+    HLT
+
+message:
+    DB 72
+    DB 101
+    DB 108
+    DB 108
+    DB 111
+    DB 44
+    DB 32
+    DB 119
+    DB 111
+    DB 114
+    DB 108
+    DB 100
+    DB 33
+    DB 10
+```
+
 ### Instruction set
 
 The compiler can assemble the following instruction set specification into an
