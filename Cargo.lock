@@ -130,6 +130,17 @@ dependencies = [
  "atty",
  "clap",
  "indexmap",
+ "intcode-assemble",
+ "peter",
+ "pretty_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "intcode-assemble"
+version = "0.0.0"
+dependencies = [
+ "indexmap",
  "peter",
  "pretty_assertions",
  "thiserror",

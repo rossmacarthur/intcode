@@ -1,9 +1,3 @@
-mod assemble;
-mod ast;
-mod error;
-mod lex;
-mod parse;
-
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;

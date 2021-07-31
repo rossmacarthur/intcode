@@ -1,8 +1,14 @@
+pub mod ast;
+mod error;
+mod lex;
+mod parse;
+
 use indexmap::IndexMap;
 
 use crate::ast::{Instr, Param, Program, Stmt};
 use crate::error::Result;
-use crate::parse;
+
+pub use crate::error::Error;
 
 #[derive(Debug, Default)]
 struct State {

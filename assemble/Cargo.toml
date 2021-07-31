@@ -1,21 +1,14 @@
 [package]
-name = "intcode"
+name = "intcode-assemble"
 version = "0.0.0"
 authors = ["Ross MacArthur <ross@macarthur.io>"]
 edition = "2018"
 publish = false
 
 [dependencies]
-anyhow = "1.0.42"
-assemble = { package = "intcode-assemble", path = "./assemble" }
-atty = "0.2.14"
-clap = "3.0.0-beta.2"
 indexmap = "1.7.0"
 peter = "0.2.1"
 thiserror = "1.0.26"
 
 [dev-dependencies]
 pretty_assertions = "0.7.2"
-
-[workspace]
-members = ["assemble"]

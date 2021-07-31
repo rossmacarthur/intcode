@@ -1,4 +1,4 @@
-/// Abstract representation of assembly code.
+//! Abstract representation of assembly code.
 
 /// The parameter mode.
 #[derive(Debug, Clone, Copy, PartialEq)]

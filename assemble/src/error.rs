@@ -36,7 +36,7 @@ fn to_line_col(lines: &[&str], offset: usize) -> (usize, usize) {
 }
 
 impl Error {
-    pub fn new(span: impl Into<Span>, msg: impl Into<Cow<'static, str>>) -> Self {
+    pub(crate) fn new(span: impl Into<Span>, msg: impl Into<Cow<'static, str>>) -> Self {
         Self {
             span: span.into(),
             msg: msg.into(),
