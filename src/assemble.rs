@@ -83,7 +83,7 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
     Ok(output)
 }
 
-/// Compile intcode assembly.
+/// Assemble the program as intcode.
 pub fn program(input: &str) -> Result<String> {
     Ok(assemble(parse::program(input)?)?
         .into_iter()
