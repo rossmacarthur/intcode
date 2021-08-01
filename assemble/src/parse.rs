@@ -64,6 +64,11 @@ impl<'i> Parser<'i> {
         }
     }
 
+    /// Advances the iterator by one token.
+    fn advance(&mut self) {
+        self.eat().unwrap();
+    }
+
     /// Consumes a token matching the given one.
     fn eat_token(&mut self, want: Token) -> Result<(Span, Token)> {
         match self.eat()? {
@@ -78,7 +83,7 @@ impl<'i> Parser<'i> {
     /// Consumes one or more tokens matching the given one.
     fn eat_all(&mut self, want: Token) -> Result<()> {
         while matches!(self.peek()?, Some((_, tk)) if tk == want) {
-            self.eat_token(want)?;
+            self.advance();
         }
         Ok(())
     }
@@ -87,7 +92,7 @@ impl<'i> Parser<'i> {
         let ident = span.as_str(self.input);
         let offset = match self.peek()? {
             Some((_, Token::Plus)) => {
-                self.eat_token(Token::Plus)?;
+                self.advance();
                 let (span, _) = self.eat_token(Token::Number)?;
                 let value: i64 = span.parse(self.input);
                 value
@@ -133,7 +138,7 @@ impl<'i> Parser<'i> {
     fn eat_param(&mut self) -> Result<Param<'i>> {
         match self.peek()? {
             Some((_, Token::Hash)) => {
-                self.eat_token(Token::Hash)?;
+                self.advance();
                 let (span, data) = self.eat_raw_param()?;
                 with_mode(span, data, Mode::Immediate)
             }
@@ -169,7 +174,7 @@ impl<'i> Parser<'i> {
         loop {
             match self.peek()? {
                 Some((_, Token::Comma)) => {
-                    self.eat_token(Token::Comma)?;
+                    self.advance();
                     data.push(self.eat_raw_param()?.1)
                 }
                 _ => break Ok(data),
@@ -232,7 +237,7 @@ impl<'i> Parser<'i> {
     fn eat_stmt(&mut self) -> Result<Stmt<'i>> {
         let label = match self.peek()? {
             Some((span, Token::Ident)) => {
-                self.eat_token(Token::Ident)?;
+                self.advance();
                 self.eat_token(Token::Colon)?;
                 let label = span.as_str(self.input);
                 if label == "rb" {

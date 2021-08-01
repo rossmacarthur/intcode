@@ -6,7 +6,7 @@ use std::str;
 use crate::error::{Error, Result};
 use crate::span::Span;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     /// `:`
     Colon,
