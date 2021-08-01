@@ -19,7 +19,6 @@ pub enum Param<'i> {
     /// ADD 0, 1, x+3
     /// ```
     Ident(Mode, &'i str, i64),
-
     /// A parameter that is an exact number.
     ///
     /// For example the '7' in the following code:
@@ -32,7 +31,11 @@ pub enum Param<'i> {
 /// Raw data.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Data<'i> {
+    /// Data that refers to a variable or label, optionally with an offset.
+    Ident(&'i str, i64),
+    /// Data that is an exact number.
     Number(i64),
+    /// Data that is a string literal.
     String(&'i str),
 }
 

@@ -91,6 +91,26 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
+    fn eat_ident(&mut self, t: Token) -> Result<(&'i str, i64)> {
+        let ident = self.str(t.span);
+        let offset = match self.peek()? {
+            Some(t) if t.kind == Kind::Plus => {
+                self.eat_kind(Kind::Plus)?;
+                let t = self.eat_kind(Kind::Number)?;
+                let value: i64 = self.str(t.span).parse().unwrap();
+                value
+            }
+            Some(t) if t.kind == Kind::Minus => {
+                self.eat_kind(Kind::Minus)?;
+                let t = self.eat_kind(Kind::Number)?;
+                let value: i64 = self.str(t.span).parse().unwrap();
+                -value
+            }
+            _ => 0,
+        };
+        Ok((ident, offset))
+    }
+
     fn eat_raw_param(&mut self) -> Result<RawParam<'i>> {
         match self.eat()? {
             t if t.kind == Kind::Minus => {
@@ -103,22 +123,7 @@ impl<'i> Parser<'i> {
                 Ok(RawParam::Number(value))
             }
             t if t.kind == Kind::Ident => {
-                let ident = self.str(t.span);
-                let offset = match self.peek()? {
-                    Some(t) if t.kind == Kind::Plus => {
-                        self.eat_kind(Kind::Plus)?;
-                        let t = self.eat_kind(Kind::Number)?;
-                        let value: i64 = self.str(t.span).parse().unwrap();
-                        value
-                    }
-                    Some(t) if t.kind == Kind::Minus => {
-                        self.eat_kind(Kind::Minus)?;
-                        let t = self.eat_kind(Kind::Number)?;
-                        let value: i64 = self.str(t.span).parse().unwrap();
-                        -value
-                    }
-                    _ => 0,
-                };
+                let (ident, offset) = self.eat_ident(t)?;
                 Ok(RawParam::Ident(ident, offset))
             }
             t => Err(Error::new(
@@ -169,6 +174,10 @@ impl<'i> Parser<'i> {
     /// Consumes the next data.
     fn eat_data(&mut self) -> Result<Data<'i>> {
         match self.eat()? {
+            t if t.kind == Kind::String => {
+                let value = self.str(Span::from(t.span.m + 1..t.span.n - 1));
+                Ok(Data::String(value))
+            }
             t if t.kind == Kind::Minus => {
                 let t = self.eat_kind(Kind::Number)?;
                 let value: i64 = self.str(t.span).parse().unwrap();
@@ -178,13 +187,16 @@ impl<'i> Parser<'i> {
                 let value = self.str(t.span).parse().unwrap();
                 Ok(Data::Number(value))
             }
-            t if t.kind == Kind::String => {
-                let value = self.str(Span::from(t.span.m + 1..t.span.n - 1));
-                Ok(Data::String(value))
+            t if t.kind == Kind::Ident => {
+                let (ident, offset) = self.eat_ident(t)?;
+                Ok(Data::Ident(ident, offset))
             }
             t => Err(Error::new(
                 t.span,
-                format!("expected a number or string, found {}", t.kind.human()),
+                format!(
+                    "expected a number, identifier, or string, found {}",
+                    t.kind.human()
+                ),
             )),
         }
     }
@@ -363,13 +375,19 @@ c: DB 50"#;
             ("ADD", (3, 4), "unexpected end of input"),
             ("ADD @", (4, 5), "unexpected character"),
             ("ADD x y", (6, 7), "expected a comma, found an identifier"),
+            ("ADD #-a", (6, 7), "expected a number, found an identifier"),
             (
                 "ADD MUL",
                 (4, 7),
                 "expected a number or identifier, found a mnemonic",
             ),
-            ("ADD #-a", (6, 7), "expected a number, found an identifier"),
+            (
+                "DB MUL",
+                (3, 6),
+                "expected a number, identifier, or string, found a mnemonic",
+            ),
             ("YUP", (0, 3), "unknown operation mnemonic"),
+            ("label: DB 0\nlabel: DB 0\n", (12, 17), "label already used"),
         ];
         for (asm, (m, n), msg) in tests {
             assert_eq!(program(asm).unwrap_err(), Error::new(*m..*n, *msg));

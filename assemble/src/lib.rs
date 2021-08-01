@@ -69,13 +69,19 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
                 let mode = param(&mut output, p);
                 output[i] += mode * 100;
             }
-            Instr::Data(data) => output.extend(data.into_iter().flat_map(|d| match d {
-                Data::Number(value) => Either::Left(iter::once(value)),
-                Data::String(string) => {
-                    Either::Right(string.as_bytes().iter().map(|&b| i64::from(b)))
-                }
-            })),
-
+            Instr::Data(data) => {
+                let i = output.len();
+                output.extend(data.into_iter().flat_map(|d| match d {
+                    Data::Ident(ident, offset) => {
+                        idents.entry(ident).or_default().refs.push(i);
+                        Either::Left(iter::once(offset))
+                    }
+                    Data::Number(value) => Either::Left(iter::once(value)),
+                    Data::String(string) => {
+                        Either::Right(string.as_bytes().iter().map(|&b| i64::from(b)))
+                    }
+                }));
+            }
             Instr::Halt => output.push(instr.opcode()),
         }
     }
