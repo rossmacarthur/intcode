@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::ast::{Instr, Mode, Param, Program, Stmt};
+use crate::ast::{Data, Instr, Mode, Param, Program, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Kind, Span, Token, Tokens};
 
@@ -166,6 +166,44 @@ impl<'i> Parser<'i> {
         Ok((x, y, z))
     }
 
+    /// Consumes the next data.
+    fn eat_data(&mut self) -> Result<Data<'i>> {
+        match self.eat()? {
+            t if t.kind == Kind::Minus => {
+                let t = self.eat_kind(Kind::Number)?;
+                let value: i64 = self.str(t.span).parse().unwrap();
+                Ok(Data::Number(-value))
+            }
+            t if t.kind == Kind::Number => {
+                let value = self.str(t.span).parse().unwrap();
+                Ok(Data::Number(value))
+            }
+            t if t.kind == Kind::String => {
+                let value = self.str(Span::from(t.span.m + 1..t.span.n - 1));
+                Ok(Data::String(value))
+            }
+            t => Err(Error::new(
+                t.span,
+                format!("expected a number or string, found {}", t.kind.human()),
+            )),
+        }
+    }
+
+    /// Consumes multiple data params.
+    fn eat_data_params(&mut self) -> Result<Vec<Data<'i>>> {
+        let mut data = Vec::new();
+        data.push(self.eat_data()?);
+        loop {
+            match self.peek()? {
+                Some(t) if t.kind == Kind::Comma => {
+                    self.eat_kind(Kind::Comma)?;
+                    data.push(self.eat_data()?)
+                }
+                _ => break Ok(data),
+            }
+        }
+    }
+
     /// Consumes the next instruction.
     fn eat_instr(&mut self) -> Result<Instr<'i>> {
         let t = self.eat_kind(Kind::Mnemonic)?;
@@ -208,8 +246,8 @@ impl<'i> Parser<'i> {
                 Instr::AdjustRelativeBase(p)
             }
             "DB" => {
-                let p = self.eat_param()?;
-                Instr::DataByte(p)
+                let data = self.eat_data_params()?;
+                Instr::Data(data)
             }
             "HLT" => Instr::Halt,
             _ => return Err(Error::new(t.span, "unknown operation mnemonic")),
@@ -304,15 +342,15 @@ c: DB 50"#;
                     },
                     Stmt {
                         label: Some("a"),
-                        instr: Instr::DataByte(Param::Number(Mode::Positional, 30)),
+                        instr: Instr::Data(vec![Data::Number(30)]),
                     },
                     Stmt {
                         label: Some("b"),
-                        instr: Instr::DataByte(Param::Number(Mode::Positional, 40)),
+                        instr: Instr::Data(vec![Data::Number(40)]),
                     },
                     Stmt {
                         label: Some("c"),
-                        instr: Instr::DataByte(Param::Number(Mode::Positional, 50)),
+                        instr: Instr::Data(vec![Data::Number(50)]),
                     },
                 ]
             }

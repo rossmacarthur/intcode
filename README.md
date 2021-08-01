@@ -4,7 +4,7 @@ Compiler and runner for the Intcode computer from Advent of Code 2019.
 
 ## Assembly
 
-### Example
+### Hello World! program
 
 The following outputs "Hello World!".
 
@@ -18,20 +18,7 @@ loop:
     HLT
 
 message:
-    DB 72
-    DB 101
-    DB 108
-    DB 108
-    DB 111
-    DB 44
-    DB 32
-    DB 119
-    DB 111
-    DB 114
-    DB 108
-    DB 100
-    DB 33
-    DB 10
+    DB "Hello World!", 10
 ```
 
 ### Instruction set

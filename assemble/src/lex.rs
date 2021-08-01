@@ -38,11 +38,13 @@ pub enum Kind {
     Ident,
     /// An instruction mnemonic, like `EQ` or `HLT`.
     Mnemonic,
+    /// String contents include the `"` prefix and suffix.
+    String,
     /// Comment contents including the `;` prefix.
     Comment,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     /// The kind of token.
     pub kind: Kind,
@@ -101,6 +103,7 @@ impl Kind {
             Self::Number => "a number",
             Self::Ident => "an identifier",
             Self::Mnemonic => "a mnemonic",
+            Self::String => "a string",
             Self::Comment => "a comment",
         }
     }
@@ -185,9 +188,19 @@ impl<'i> Tokens<'i> {
         Token::new(kind, i, self.iter.peek_index())
     }
 
+    /// Eats the next string.
+    fn lex_string(&mut self, i: usize) -> Result<Token> {
+        while self.lex_if(|c| !matches!(c, '"' | '\r' | '\n')) {}
+        match self.lex_if(|&c| c == '"') {
+            true => Ok(Token::new(Kind::String, i, self.iter.peek_index())),
+            false => Err(Error::new(i..self.iter.peek_index(), "undelimited string")),
+        }
+    }
+
     /// Returns the next token in the iterator.
     pub fn next(&mut self) -> Result<Option<Token>> {
         let token = match self.iter.next() {
+            Some((i, '"')) => Some(self.lex_string(i)?),
             Some((i, ';')) => Some(self.lex_token(Kind::Comment, i, |&c| c != '\n')),
             Some((i, ':')) => Some(Token::new(Kind::Colon, i, i + 1)),
             Some((i, ',')) => Some(Token::new(Kind::Comma, i, i + 1)),
@@ -276,6 +289,12 @@ mod tests {
                 Token::new(Kind::Newline, 47, 48),
             ]
         );
+    }
+
+    #[test]
+    fn basic_string() {
+        let tokens = tokenize("\"Hello World!\"");
+        assert_eq!(tokens, [Token::new(Kind::String, 0, 14)])
     }
 
     #[test]

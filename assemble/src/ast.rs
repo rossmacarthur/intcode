@@ -29,8 +29,15 @@ pub enum Param<'i> {
     Number(Mode, i64),
 }
 
-/// An instruction.
+/// Raw data.
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Data<'i> {
+    Number(i64),
+    String(&'i str),
+}
+
+/// An instruction.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instr<'i> {
     /// Adds two parameters together.
     Add(Param<'i>, Param<'i>, Param<'i>),
@@ -52,10 +59,11 @@ pub enum Instr<'i> {
     /// Adjust the relative base by the given amount.
     AdjustRelativeBase(Param<'i>),
 
-    /// Places raw data in the program.
-    DataByte(Param<'i>),
     /// Halts the program.
     Halt,
+
+    /// (Pseudo) Places raw data in the program.
+    Data(Vec<Data<'i>>),
 }
 
 /// A single line in a program.
@@ -85,7 +93,7 @@ impl From<Mode> for i64 {
 
 impl Instr<'_> {
     pub fn opcode(&self) -> i64 {
-        match *self {
+        match self {
             Self::Add(..) => 1,
             Self::Multiply(..) => 2,
             Self::Input(..) => 3,

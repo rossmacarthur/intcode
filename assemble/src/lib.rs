@@ -3,9 +3,12 @@ mod error;
 mod lex;
 mod parse;
 
+use std::iter;
+
+use either::Either;
 use indexmap::IndexMap;
 
-use crate::ast::{Instr, Param, Program, Stmt};
+use crate::ast::{Data, Instr, Param, Program, Stmt};
 use crate::error::Result;
 
 pub use crate::error::Error;
@@ -66,9 +69,13 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
                 let mode = param(&mut output, p);
                 output[i] += mode * 100;
             }
-            Instr::DataByte(p) => {
-                param(&mut output, p);
-            }
+            Instr::Data(data) => output.extend(data.into_iter().flat_map(|d| match d {
+                Data::Number(value) => Either::Left(iter::once(value)),
+                Data::String(string) => {
+                    Either::Right(string.as_bytes().iter().map(|&b| i64::from(b)))
+                }
+            })),
+
             Instr::Halt => output.push(instr.opcode()),
         }
     }
