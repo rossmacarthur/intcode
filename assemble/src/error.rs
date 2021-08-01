@@ -1,6 +1,6 @@
-use std::borrow::Cow;
 use std::path::Path;
 
+use dairy::Cow;
 use peter::Stylize;
 use thiserror::Error;
 
