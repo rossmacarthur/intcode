@@ -4,18 +4,10 @@ use std::ops;
 use std::str;
 
 use crate::error::{Error, Result};
-
-/// Represents a location in the original input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    /// The start index.
-    pub m: usize,
-    /// The end index.
-    pub n: usize,
-}
+use crate::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
+pub enum Token {
     /// `:`
     Colon,
     /// `,`
@@ -44,14 +36,6 @@ pub enum Kind {
     Comment,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token {
-    /// The kind of token.
-    pub kind: Kind,
-    /// The location in the original string.
-    pub span: Span,
-}
-
 /// An iterator over (index, char) in a string.
 #[derive(Debug, Clone)]
 struct CharIndices<'i> {
@@ -70,26 +54,11 @@ pub struct Tokens<'i> {
 // Implementations
 ////////////////////////////////////////////////////////////////////////////////
 
-impl Span {
-    pub fn width(&self) -> usize {
-        self.n - self.m
-    }
-
-    pub fn range(&self) -> ops::Range<usize> {
-        self.m..self.n
-    }
+fn span(token: Token, span: impl Into<Span>) -> (Span, Token) {
+    (span.into(), token)
 }
 
-impl From<ops::Range<usize>> for Span {
-    fn from(r: ops::Range<usize>) -> Self {
-        Self {
-            m: r.start,
-            n: r.end,
-        }
-    }
-}
-
-impl Kind {
+impl Token {
     pub fn human(&self) -> &'static str {
         match *self {
             Self::Colon => "a colon",
@@ -105,16 +74,6 @@ impl Kind {
             Self::Mnemonic => "a mnemonic",
             Self::String => "a string",
             Self::Comment => "a comment",
-        }
-    }
-}
-
-impl Token {
-    /// Construct a new token with the given kind and span.
-    fn new(kind: Kind, m: usize, n: usize) -> Self {
-        Self {
-            kind,
-            span: Span { m, n },
         }
     }
 }
@@ -180,62 +139,62 @@ impl<'i> Tokens<'i> {
     }
 
     /// Eats the next token, including all characters satisfying the predicate.
-    fn lex_token<P>(&mut self, kind: Kind, i: usize, predicate: P) -> Token
+    fn lex_token<P>(&mut self, token: Token, i: usize, predicate: P) -> (Span, Token)
     where
         P: Fn(&char) -> bool + Copy,
     {
         while self.lex_if(predicate) {}
-        Token::new(kind, i, self.iter.peek_index())
+        span(token, i..self.iter.peek_index())
     }
 
     /// Eats the next string.
-    fn lex_string(&mut self, i: usize) -> Result<Token> {
+    fn lex_string(&mut self, i: usize) -> Result<(Span, Token)> {
         while self.lex_if(|c| !matches!(c, '"' | '\r' | '\n')) {}
         match self.lex_if(|&c| c == '"') {
-            true => Ok(Token::new(Kind::String, i, self.iter.peek_index())),
-            false => Err(Error::new(i..self.iter.peek_index(), "undelimited string")),
+            true => Ok(span(Token::String, i..self.iter.peek_index())),
+            false => Err(Error::new("undelimited string", i..self.iter.peek_index())),
         }
     }
 
     /// Returns the next token in the iterator.
-    pub fn next(&mut self) -> Result<Option<Token>> {
+    pub fn next(&mut self) -> Result<Option<(Span, Token)>> {
         let token = match self.iter.next() {
             Some((i, '"')) => Some(self.lex_string(i)?),
-            Some((i, ';')) => Some(self.lex_token(Kind::Comment, i, |&c| c != '\n')),
-            Some((i, ':')) => Some(Token::new(Kind::Colon, i, i + 1)),
-            Some((i, ',')) => Some(Token::new(Kind::Comma, i, i + 1)),
-            Some((i, '#')) => Some(Token::new(Kind::Hash, i, i + 1)),
-            Some((i, '+')) => Some(Token::new(Kind::Plus, i, i + 1)),
-            Some((i, '-')) => Some(Token::new(Kind::Minus, i, i + 1)),
-            Some((i, '~')) => Some(Token::new(Kind::Tilde, i, i + 1)),
-            Some((i, '\n')) => Some(Token::new(Kind::Newline, i, i + 1)),
+            Some((i, ';')) => Some(self.lex_token(Token::Comment, i, |&c| c != '\n')),
+            Some((i, ':')) => Some(span(Token::Colon, i)),
+            Some((i, ',')) => Some(span(Token::Comma, i)),
+            Some((i, '#')) => Some(span(Token::Hash, i)),
+            Some((i, '+')) => Some(span(Token::Plus, i)),
+            Some((i, '-')) => Some(span(Token::Minus, i)),
+            Some((i, '~')) => Some(span(Token::Tilde, i)),
+            Some((i, '\n')) => Some(span(Token::Newline, i)),
             Some((i, c)) if c.is_ascii_whitespace() => {
-                Some(self.lex_token(Kind::Whitespace, i, char::is_ascii_whitespace))
+                Some(self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace))
             }
             Some((i, c)) if c.is_ascii_digit() => {
-                Some(self.lex_token(Kind::Number, i, char::is_ascii_digit))
+                Some(self.lex_token(Token::Number, i, char::is_ascii_digit))
             }
             Some((i, c)) if is_identifier(&c) => {
-                Some(self.lex_token(Kind::Ident, i, is_identifier))
+                Some(self.lex_token(Token::Ident, i, is_identifier))
             }
             Some((i, c)) if c.is_ascii_uppercase() => {
-                Some(self.lex_token(Kind::Mnemonic, i, char::is_ascii_uppercase))
+                Some(self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase))
             }
 
-            Some((i, _)) => return Err(Error::new(i..(i + 1), "unexpected character")),
+            Some((i, _)) => return Err(Error::new("unexpected character", i..i + 1)),
             None => None,
         };
         Ok(token)
     }
 
     /// Finds the next token matching the predicate.
-    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<Token>>
+    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<(Span, Token)>>
     where
-        P: FnMut(&Kind) -> bool,
+        P: FnMut(&Token) -> bool,
     {
         loop {
             match self.next()? {
-                Some(token) if predicate(&token.kind) => break Ok(Some(token)),
+                Some((span, token)) if predicate(&token) => break Ok(Some((span, token))),
                 None => break Ok(None),
                 Some(_) => continue,
             }
@@ -250,7 +209,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     impl<'i> Iterator for Tokens<'i> {
-        type Item = Result<Token>;
+        type Item = Result<(Span, Token)>;
 
         fn next(&mut self) -> Option<Self::Item> {
             self.next().transpose()
@@ -258,7 +217,7 @@ mod tests {
     }
 
     #[track_caller]
-    fn tokenize(input: &str) -> Vec<Token> {
+    fn tokenize(input: &str) -> Vec<(Span, Token)> {
         Tokens::new(input).collect::<Result<_>>().unwrap()
     }
 
@@ -268,25 +227,25 @@ mod tests {
         assert_eq!(
             tokens,
             [
-                Token::new(Kind::Ident, 0, 5),
-                Token::new(Kind::Colon, 5, 6),
-                Token::new(Kind::Newline, 6, 7),
-                Token::new(Kind::Mnemonic, 7, 10),
-                Token::new(Kind::Whitespace, 10, 11),
-                Token::new(Kind::Ident, 11, 14),
-                Token::new(Kind::Comma, 14, 15),
-                Token::new(Kind::Whitespace, 15, 16),
-                Token::new(Kind::Hash, 16, 17),
-                Token::new(Kind::Number, 17, 19),
-                Token::new(Kind::Comma, 19, 20),
-                Token::new(Kind::Whitespace, 20, 21),
-                Token::new(Kind::Tilde, 21, 22),
-                Token::new(Kind::Ident, 22, 23),
-                Token::new(Kind::Plus, 23, 24),
-                Token::new(Kind::Number, 24, 25),
-                Token::new(Kind::Whitespace, 25, 28),
-                Token::new(Kind::Comment, 28, 47),
-                Token::new(Kind::Newline, 47, 48),
+                span(Token::Ident, 0..5),
+                span(Token::Colon, 5..6),
+                span(Token::Newline, 6..7),
+                span(Token::Mnemonic, 7..10),
+                span(Token::Whitespace, 10..11),
+                span(Token::Ident, 11..14),
+                span(Token::Comma, 14..15),
+                span(Token::Whitespace, 15..16),
+                span(Token::Hash, 16..17),
+                span(Token::Number, 17..19),
+                span(Token::Comma, 19..20),
+                span(Token::Whitespace, 20..21),
+                span(Token::Tilde, 21..22),
+                span(Token::Ident, 22..23),
+                span(Token::Plus, 23..24),
+                span(Token::Number, 24..25),
+                span(Token::Whitespace, 25..28),
+                span(Token::Comment, 28..47),
+                span(Token::Newline, 47..48),
             ]
         );
     }
@@ -294,14 +253,14 @@ mod tests {
     #[test]
     fn basic_string() {
         let tokens = tokenize("\"Hello World!\"");
-        assert_eq!(tokens, [Token::new(Kind::String, 0, 14)])
+        assert_eq!(tokens, [span(Token::String, 0..14)])
     }
 
     #[test]
     fn error() {
         assert_eq!(
             Tokens::new("@").next().unwrap_err(),
-            Error::new(0..1, "unexpected character")
+            Error::new("unexpected character", 0..1)
         );
     }
 }

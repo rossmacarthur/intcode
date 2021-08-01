@@ -4,7 +4,7 @@ use dairy::Cow;
 use peter::Stylize;
 use thiserror::Error;
 
-use crate::lex::Span;
+use crate::span::Span;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -16,8 +16,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{msg}")]
 pub struct Error {
-    span: Span,
     msg: Cow<'static, str>,
+    span: Span,
 }
 
 fn to_line_col(lines: &[&str], offset: usize) -> (usize, usize) {
@@ -36,7 +36,7 @@ fn to_line_col(lines: &[&str], offset: usize) -> (usize, usize) {
 }
 
 impl Error {
-    pub(crate) fn new(span: impl Into<Span>, msg: impl Into<Cow<'static, str>>) -> Self {
+    pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
             msg: msg.into(),

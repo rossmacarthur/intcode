@@ -2,6 +2,7 @@ pub mod ast;
 mod error;
 mod lex;
 mod parse;
+mod span;
 
 use std::iter;
 

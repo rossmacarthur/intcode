@@ -4,7 +4,8 @@ use std::collections::HashSet;
 
 use crate::ast::{Data, Instr, Mode, Param, Program, Stmt};
 use crate::error::{Error, Result};
-use crate::lex::{Kind, Span, Token, Tokens};
+use crate::lex::{Token, Tokens};
+use crate::span::Span;
 
 struct Parser<'i> {
     /// The original input string.
@@ -15,12 +16,12 @@ struct Parser<'i> {
     labels: HashSet<&'i str>,
 }
 
-fn is_not_whitespace_or_comment(k: &Kind) -> bool {
-    !matches!(*k, Kind::Whitespace | Kind::Comment)
+fn is_not_whitespace_or_comment(token: &Token) -> bool {
+    !matches!(token, Token::Whitespace | Token::Comment)
 }
 
-fn is_interesting(k: &Kind) -> bool {
-    !matches!(*k, Kind::Newline | Kind::Whitespace | Kind::Comment)
+fn is_interesting(token: &Token) -> bool {
+    !matches!(token, Token::Newline | Token::Whitespace | Token::Comment)
 }
 
 enum RawParam<'i> {
@@ -47,63 +48,59 @@ impl<'i> Parser<'i> {
         }
     }
 
-    fn str(&self, span: Span) -> &'i str {
-        &self.input[span.range()]
-    }
-
     /// Returns the next token, ignoring over whitespace and comments.
-    fn peek(&self) -> Result<Option<Token>> {
+    fn peek(&self) -> Result<Option<(Span, Token)>> {
         self.tokens.clone().find(is_not_whitespace_or_comment)
     }
 
     /// Returns the next interesting token.
-    fn peek_interesting(&self) -> Result<Option<Token>> {
+    fn peek_interesting(&self) -> Result<Option<(Span, Token)>> {
         self.tokens.clone().find(is_interesting)
     }
 
     /// Consumes the next token, skipping over whitespace and comments.
-    fn eat(&mut self) -> Result<Token> {
+    fn eat(&mut self) -> Result<(Span, Token)> {
         match self.tokens.find(is_not_whitespace_or_comment)? {
-            Some(t) => Ok(t),
+            Some(tk) => Ok(tk),
             None => {
                 let m = self.input.chars().count();
-                Err(Error::new(Span { m, n: m + 1 }, "unexpected end of input"))
+                Err(Error::new("unexpected end of input", m..m + 1))
             }
         }
     }
 
-    /// Consumes a token matching the given kind.
-    fn eat_kind(&mut self, k: Kind) -> Result<Token> {
+    /// Consumes a token matching the given one.
+    fn eat_token(&mut self, want: Token) -> Result<(Span, Token)> {
         match self.eat()? {
-            t if t.kind == k => Ok(t),
-            t => Err(Error::new(
-                t.span,
-                format!("expected {}, found {}", k.human(), t.kind.human()),
+            (span, tk) if tk == want => Ok((span, tk)),
+            (span, tk) => Err(Error::new(
+                format!("expected {}, found {}", want.human(), tk.human()),
+                span,
             )),
         }
     }
 
-    /// Consumes one or more tokens matching the given kind.
-    fn eat_all(&mut self, k: Kind) -> Result<()> {
-        while matches!(self.peek()?, Some(t) if t.kind == k) {
-            self.eat_kind(k)?;
+    /// Consumes one or more tokens matching the given one.
+    fn eat_all(&mut self, want: Token) -> Result<()> {
+        while matches!(self.peek()?, Some((_, tk)) if tk == want) {
+            self.eat_token(want)?;
         }
         Ok(())
     }
 
-    fn eat_ident(&mut self, t: Token) -> Result<(&'i str, i64)> {
-        let ident = self.str(t.span);
+    fn eat_ident(&mut self, span: Span) -> Result<(&'i str, i64)> {
+        let ident = span.as_str(self.input);
         let offset = match self.peek()? {
-            Some(t) if t.kind == Kind::Plus => {
-                self.eat_kind(Kind::Plus)?;
-                let t = self.eat_kind(Kind::Number)?;
-                let value: i64 = self.str(t.span).parse().unwrap();
+            Some((_, Token::Plus)) => {
+                self.eat_token(Token::Plus)?;
+                let (span, _) = self.eat_token(Token::Number)?;
+                let value: i64 = span.parse(self.input);
                 value
             }
-            Some(t) if t.kind == Kind::Minus => {
-                self.eat_kind(Kind::Minus)?;
-                let t = self.eat_kind(Kind::Number)?;
-                let value: i64 = self.str(t.span).parse().unwrap();
+            Some((_, Token::Minus)) => {
+                self.eat_token(Token::Minus)?;
+                let (span, _) = self.eat_token(Token::Number)?;
+                let value: i64 = span.parse(self.input);
                 -value
             }
             _ => 0,
@@ -113,22 +110,22 @@ impl<'i> Parser<'i> {
 
     fn eat_raw_param(&mut self) -> Result<RawParam<'i>> {
         match self.eat()? {
-            t if t.kind == Kind::Minus => {
-                let t = self.eat_kind(Kind::Number)?;
-                let value: i64 = self.str(t.span).parse().unwrap();
+            (_, Token::Minus) => {
+                let (span, _) = self.eat_token(Token::Number)?;
+                let value: i64 = span.parse(self.input);
                 Ok(RawParam::Number(-value))
             }
-            t if t.kind == Kind::Number => {
-                let value = self.str(t.span).parse().unwrap();
+            (span, Token::Number) => {
+                let value = span.parse(self.input);
                 Ok(RawParam::Number(value))
             }
-            t if t.kind == Kind::Ident => {
-                let (ident, offset) = self.eat_ident(t)?;
+            (span, Token::Ident) => {
+                let (ident, offset) = self.eat_ident(span)?;
                 Ok(RawParam::Ident(ident, offset))
             }
-            t => Err(Error::new(
-                t.span,
-                format!("expected a number or identifier, found {}", t.kind.human()),
+            (span, tk) => Err(Error::new(
+                format!("expected a number or identifier, found {}", tk.human()),
+                span,
             )),
         }
     }
@@ -136,13 +133,13 @@ impl<'i> Parser<'i> {
     /// Consumes the next parameter.
     fn eat_param(&mut self) -> Result<Param<'i>> {
         match self.peek()? {
-            Some(t) if t.kind == Kind::Tilde => {
-                self.eat_kind(Kind::Tilde)?;
+            Some((_, Token::Tilde)) => {
+                self.eat_token(Token::Tilde)?;
                 let p = self.eat_raw_param()?;
                 Ok(p.with_mode(Mode::Relative))
             }
-            Some(t) if t.kind == Kind::Hash => {
-                self.eat_kind(Kind::Hash)?;
+            Some((_, Token::Hash)) => {
+                self.eat_token(Token::Hash)?;
                 let p = self.eat_raw_param()?;
                 Ok(p.with_mode(Mode::Immediate))
             }
@@ -156,7 +153,7 @@ impl<'i> Parser<'i> {
     /// Consumes the next two parameters.
     fn eat_params2(&mut self) -> Result<(Param<'i>, Param<'i>)> {
         let x = self.eat_param()?;
-        self.eat_kind(Kind::Comma)?;
+        self.eat_token(Token::Comma)?;
         let y = self.eat_param()?;
         Ok((x, y))
     }
@@ -164,9 +161,9 @@ impl<'i> Parser<'i> {
     /// Consumes the next three parameters.
     fn eat_params3(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
         let x = self.eat_param()?;
-        self.eat_kind(Kind::Comma)?;
+        self.eat_token(Token::Comma)?;
         let y = self.eat_param()?;
-        self.eat_kind(Kind::Comma)?;
+        self.eat_token(Token::Comma)?;
         let z = self.eat_param()?;
         Ok((x, y, z))
     }
@@ -174,29 +171,29 @@ impl<'i> Parser<'i> {
     /// Consumes the next data.
     fn eat_data(&mut self) -> Result<Data<'i>> {
         match self.eat()? {
-            t if t.kind == Kind::String => {
-                let value = self.str(Span::from(t.span.m + 1..t.span.n - 1));
+            (Span { m, n }, Token::String) => {
+                let value = Span::new(m + 1, n - 1).as_str(self.input);
                 Ok(Data::String(value))
             }
-            t if t.kind == Kind::Minus => {
-                let t = self.eat_kind(Kind::Number)?;
-                let value: i64 = self.str(t.span).parse().unwrap();
+            (_, Token::Minus) => {
+                let (span, _) = self.eat_token(Token::Number)?;
+                let value: i64 = span.parse(self.input);
                 Ok(Data::Number(-value))
             }
-            t if t.kind == Kind::Number => {
-                let value = self.str(t.span).parse().unwrap();
+            (span, Token::Number) => {
+                let value = span.parse(self.input);
                 Ok(Data::Number(value))
             }
-            t if t.kind == Kind::Ident => {
-                let (ident, offset) = self.eat_ident(t)?;
+            (span, Token::Ident) => {
+                let (ident, offset) = self.eat_ident(span)?;
                 Ok(Data::Ident(ident, offset))
             }
-            t => Err(Error::new(
-                t.span,
+            (span, tk) => Err(Error::new(
                 format!(
                     "expected a number, identifier, or string, found {}",
-                    t.kind.human()
+                    tk.human()
                 ),
+                span,
             )),
         }
     }
@@ -207,8 +204,8 @@ impl<'i> Parser<'i> {
         data.push(self.eat_data()?);
         loop {
             match self.peek()? {
-                Some(t) if t.kind == Kind::Comma => {
-                    self.eat_kind(Kind::Comma)?;
+                Some((_, Token::Comma)) => {
+                    self.eat_token(Token::Comma)?;
                     data.push(self.eat_data()?)
                 }
                 _ => break Ok(data),
@@ -218,8 +215,8 @@ impl<'i> Parser<'i> {
 
     /// Consumes the next instruction.
     fn eat_instr(&mut self) -> Result<Instr<'i>> {
-        let t = self.eat_kind(Kind::Mnemonic)?;
-        let opcode = self.str(t.span);
+        let (span, _) = self.eat_token(Token::Mnemonic)?;
+        let opcode = span.as_str(self.input);
         let instr = match opcode {
             "ADD" => {
                 let (x, y, z) = self.eat_params3()?;
@@ -262,7 +259,7 @@ impl<'i> Parser<'i> {
                 Instr::Data(data)
             }
             "HLT" => Instr::Halt,
-            _ => return Err(Error::new(t.span, "unknown operation mnemonic")),
+            _ => return Err(Error::new("unknown operation mnemonic", span)),
         };
         Ok(instr)
     }
@@ -270,18 +267,18 @@ impl<'i> Parser<'i> {
     /// Consumes the next statement.
     fn eat_stmt(&mut self) -> Result<Stmt<'i>> {
         let label = match self.peek()? {
-            Some(t) if t.kind == Kind::Ident => {
-                self.eat_kind(Kind::Ident)?;
-                self.eat_kind(Kind::Colon)?;
-                let label = self.str(t.span);
+            Some((span, Token::Ident)) => {
+                self.eat_token(Token::Ident)?;
+                self.eat_token(Token::Colon)?;
+                let label = span.as_str(self.input);
                 if !self.labels.insert(label) {
-                    return Err(Error::new(t.span, "label already used"));
+                    return Err(Error::new("label already used", span));
                 }
                 Some(label)
             }
             _ => None,
         };
-        self.eat_all(Kind::Newline)?;
+        self.eat_all(Token::Newline)?;
         let instr = self.eat_instr()?;
         Ok(Stmt { label, instr })
     }
@@ -290,14 +287,14 @@ impl<'i> Parser<'i> {
     fn eat_program(&mut self) -> Result<Program<'i>> {
         let mut stmts = Vec::new();
         loop {
-            self.eat_all(Kind::Newline)?;
+            self.eat_all(Token::Newline)?;
             stmts.push(self.eat_stmt()?);
             // Either a newline or EOF is okay here, we don't want trailing
             // newlines to be required.
             match self.peek_interesting()? {
                 None => break,
                 Some(_) => {
-                    self.eat_kind(Kind::Newline)?;
+                    self.eat_token(Token::Newline)?;
                 }
             }
         }
@@ -390,7 +387,7 @@ c: DB 50"#;
             ("label: DB 0\nlabel: DB 0\n", (12, 17), "label already used"),
         ];
         for (asm, (m, n), msg) in tests {
-            assert_eq!(program(asm).unwrap_err(), Error::new(*m..*n, *msg));
+            assert_eq!(program(asm).unwrap_err(), Error::new(*msg, *m..*n));
         }
     }
 }
