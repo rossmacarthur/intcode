@@ -16,6 +16,13 @@ impl Span {
         Self { m, n }
     }
 
+    pub fn include(self, other: Self) -> Self {
+        Self {
+            m: self.m,
+            n: other.n,
+        }
+    }
+
     pub fn width(&self) -> usize {
         self.n - self.m
     }

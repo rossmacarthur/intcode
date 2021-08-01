@@ -88,26 +88,6 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
-    fn eat_ident(&mut self, span: Span) -> Result<(&'i str, i64)> {
-        let ident = span.as_str(self.input);
-        let offset = match self.peek()? {
-            Some((_, Token::Plus)) => {
-                self.advance();
-                let (span, _) = self.eat_token(Token::Number)?;
-                let value: i64 = span.parse(self.input);
-                value
-            }
-            Some((_, Token::Minus)) => {
-                self.eat_token(Token::Minus)?;
-                let (span, _) = self.eat_token(Token::Number)?;
-                let value: i64 = span.parse(self.input);
-                -value
-            }
-            _ => 0,
-        };
-        Ok((ident, offset))
-    }
-
     fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
             (Span { m, n }, Token::String) => {
@@ -124,8 +104,22 @@ impl<'i> Parser<'i> {
                 Ok((span, Data::Number(value)))
             }
             (span, Token::Ident) => {
-                let (ident, offset) = self.eat_ident(span)?;
-                Ok((span, Data::Ident(ident, offset)))
+                let ident = span.as_str(self.input);
+                match self.peek()? {
+                    Some((_, Token::Plus)) => {
+                        self.advance();
+                        let (num, _) = self.eat_token(Token::Number)?;
+                        let value: i64 = num.parse(self.input);
+                        Ok((span.include(num), Data::Ident(ident, value)))
+                    }
+                    Some((_, Token::Minus)) => {
+                        self.advance();
+                        let (num, _) = self.eat_token(Token::Number)?;
+                        let value: i64 = num.parse(self.input);
+                        Ok((span.include(num), Data::Ident(ident, -value)))
+                    }
+                    _ => Ok((span, Data::Ident(ident, 0))),
+                }
             }
             (span, tk) => Err(Error::new(
                 format!("expected a parameter, found {}", tk.human()),
