@@ -203,7 +203,7 @@ a: DB  1
     fn advent_day9_example_quine() {
         let asm = "\
 ARB #1
-OUT ~-1
+OUT rb-1
 ADD 100, #1, 100
 EQ  100, #16, 101
 JZ  101, #0

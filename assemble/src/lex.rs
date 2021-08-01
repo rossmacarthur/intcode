@@ -18,8 +18,6 @@ pub enum Token {
     Plus,
     /// `-`
     Minus,
-    /// `~`
-    Tilde,
     /// An LF line ending (0x0A).
     Newline,
     /// A sequence of tab (0x09) and/or spaces (0x20).
@@ -66,7 +64,6 @@ impl Token {
             Self::Hash => "a hash",
             Self::Plus => "a plus",
             Self::Minus => "a minus",
-            Self::Tilde => "a tilde",
             Self::Newline => "a newline",
             Self::Whitespace => "whitespace",
             Self::Number => "a number",
@@ -166,7 +163,6 @@ impl<'i> Tokens<'i> {
             Some((i, '#')) => Some(span(Token::Hash, i)),
             Some((i, '+')) => Some(span(Token::Plus, i)),
             Some((i, '-')) => Some(span(Token::Minus, i)),
-            Some((i, '~')) => Some(span(Token::Tilde, i)),
             Some((i, '\n')) => Some(span(Token::Newline, i)),
             Some((i, c)) if c.is_ascii_whitespace() => {
                 Some(self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace))
@@ -223,7 +219,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let tokens = tokenize("start:\nADD tmp, #19, ~a+1 \t ; this is a comment\n");
+        let tokens = tokenize("start:\nADD tmp, #19, rb+1 \t ; this is a comment\n");
         assert_eq!(
             tokens,
             [
@@ -239,8 +235,7 @@ mod tests {
                 span(Token::Number, 17..19),
                 span(Token::Comma, 19..20),
                 span(Token::Whitespace, 20..21),
-                span(Token::Tilde, 21..22),
-                span(Token::Ident, 22..23),
+                span(Token::Ident, 21..23),
                 span(Token::Plus, 23..24),
                 span(Token::Number, 24..25),
                 span(Token::Whitespace, 25..28),

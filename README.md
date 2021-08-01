@@ -10,9 +10,9 @@ The following program outputs "Hello World!".
     ARB #message  ; move the relative base to the beginning of our message
 
 loop:
-    OUT ~0        ; output the current character in the message
+    OUT rb        ; output the current character in the message
     ARB #1        ; go to the next character
-    JNZ ~0, #loop ; if the next character is non-zero then go back to `loop`
+    JNZ rb, #loop ; if the next character is non-zero then go back to `loop`
     HLT
 
 message:
@@ -81,7 +81,8 @@ There are three ways to specify the operands for different instructions.
 
   Specifies a value by specifying the *address* it should be read from as an
   offset of the *relative base*. For example:
-  - `~19` specifies the value at the relative base address with an offset of 19.
+  - `rb+19` specifies the value at the relative base address with an offset of
+    19.
 
 ### Opcodes
 

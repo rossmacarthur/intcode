@@ -26,6 +26,7 @@ fn is_interesting(token: &Token) -> bool {
 
 fn with_mode<'i>(span: Span, data: Data<'i>, mode: Mode) -> Result<Param<'i>> {
     match data {
+        Data::Ident("rb", offset) => Ok(Param::Number(Mode::Relative, offset)),
         Data::Ident(ident, offset) => Ok(Param::Ident(mode, ident, offset)),
         Data::Number(value) => Ok(Param::Number(mode, value)),
         _ => Err(Error::new("string parameter not allowed here", span)),
@@ -131,11 +132,6 @@ impl<'i> Parser<'i> {
     /// Consumes the next parameter.
     fn eat_param(&mut self) -> Result<Param<'i>> {
         match self.peek()? {
-            Some((_, Token::Tilde)) => {
-                self.eat_token(Token::Tilde)?;
-                let (span, data) = self.eat_raw_param()?;
-                with_mode(span, data, Mode::Relative)
-            }
             Some((_, Token::Hash)) => {
                 self.eat_token(Token::Hash)?;
                 let (span, data) = self.eat_raw_param()?;
@@ -239,7 +235,9 @@ impl<'i> Parser<'i> {
                 self.eat_token(Token::Ident)?;
                 self.eat_token(Token::Colon)?;
                 let label = span.as_str(self.input);
-                if !self.labels.insert(label) {
+                if label == "rb" {
+                    return Err(Error::new("label is reserved for the relative base", span));
+                } else if !self.labels.insert(label) {
                     return Err(Error::new("label already used", span));
                 }
                 Some(label)
