@@ -24,17 +24,11 @@ fn is_interesting(token: &Token) -> bool {
     !matches!(token, Token::Newline | Token::Whitespace | Token::Comment)
 }
 
-enum RawParam<'i> {
-    Ident(&'i str, i64),
-    Number(i64),
-}
-
-impl<'i> RawParam<'i> {
-    fn with_mode(self, mode: Mode) -> Param<'i> {
-        match self {
-            Self::Ident(ident, offset) => Param::Ident(mode, ident, offset),
-            Self::Number(value) => Param::Number(mode, value),
-        }
+fn with_mode<'i>(span: Span, data: Data<'i>, mode: Mode) -> Result<Param<'i>> {
+    match data {
+        Data::Ident(ident, offset) => Ok(Param::Ident(mode, ident, offset)),
+        Data::Number(value) => Ok(Param::Number(mode, value)),
+        _ => Err(Error::new("string parameter not allowed here", span)),
     }
 }
 
@@ -108,23 +102,27 @@ impl<'i> Parser<'i> {
         Ok((ident, offset))
     }
 
-    fn eat_raw_param(&mut self) -> Result<RawParam<'i>> {
+    fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
-            (_, Token::Minus) => {
+            (Span { m, n }, Token::String) => {
+                let value = Span::new(m + 1, n - 1).as_str(self.input);
+                Ok((Span { m, n }, Data::String(value)))
+            }
+            (Span { m, .. }, Token::Minus) => {
                 let (span, _) = self.eat_token(Token::Number)?;
                 let value: i64 = span.parse(self.input);
-                Ok(RawParam::Number(-value))
+                Ok((Span { m, n: span.n }, Data::Number(-value)))
             }
             (span, Token::Number) => {
                 let value = span.parse(self.input);
-                Ok(RawParam::Number(value))
+                Ok((span, Data::Number(value)))
             }
             (span, Token::Ident) => {
                 let (ident, offset) = self.eat_ident(span)?;
-                Ok(RawParam::Ident(ident, offset))
+                Ok((span, Data::Ident(ident, offset)))
             }
             (span, tk) => Err(Error::new(
-                format!("expected a number or identifier, found {}", tk.human()),
+                format!("expected a parameter, found {}", tk.human()),
                 span,
             )),
         }
@@ -135,17 +133,17 @@ impl<'i> Parser<'i> {
         match self.peek()? {
             Some((_, Token::Tilde)) => {
                 self.eat_token(Token::Tilde)?;
-                let p = self.eat_raw_param()?;
-                Ok(p.with_mode(Mode::Relative))
+                let (span, data) = self.eat_raw_param()?;
+                with_mode(span, data, Mode::Relative)
             }
             Some((_, Token::Hash)) => {
                 self.eat_token(Token::Hash)?;
-                let p = self.eat_raw_param()?;
-                Ok(p.with_mode(Mode::Immediate))
+                let (span, data) = self.eat_raw_param()?;
+                with_mode(span, data, Mode::Immediate)
             }
             _ => {
-                let p = self.eat_raw_param()?;
-                Ok(p.with_mode(Mode::Positional))
+                let (span, data) = self.eat_raw_param()?;
+                with_mode(span, data, Mode::Positional)
             }
         }
     }
@@ -168,45 +166,15 @@ impl<'i> Parser<'i> {
         Ok((x, y, z))
     }
 
-    /// Consumes the next data.
-    fn eat_data(&mut self) -> Result<Data<'i>> {
-        match self.eat()? {
-            (Span { m, n }, Token::String) => {
-                let value = Span::new(m + 1, n - 1).as_str(self.input);
-                Ok(Data::String(value))
-            }
-            (_, Token::Minus) => {
-                let (span, _) = self.eat_token(Token::Number)?;
-                let value: i64 = span.parse(self.input);
-                Ok(Data::Number(-value))
-            }
-            (span, Token::Number) => {
-                let value = span.parse(self.input);
-                Ok(Data::Number(value))
-            }
-            (span, Token::Ident) => {
-                let (ident, offset) = self.eat_ident(span)?;
-                Ok(Data::Ident(ident, offset))
-            }
-            (span, tk) => Err(Error::new(
-                format!(
-                    "expected a number, identifier, or string, found {}",
-                    tk.human()
-                ),
-                span,
-            )),
-        }
-    }
-
     /// Consumes multiple data params.
     fn eat_data_params(&mut self) -> Result<Vec<Data<'i>>> {
         let mut data = Vec::new();
-        data.push(self.eat_data()?);
+        data.push(self.eat_raw_param()?.1);
         loop {
             match self.peek()? {
                 Some((_, Token::Comma)) => {
                     self.eat_token(Token::Comma)?;
-                    data.push(self.eat_data()?)
+                    data.push(self.eat_raw_param()?.1)
                 }
                 _ => break Ok(data),
             }
@@ -373,16 +341,7 @@ c: DB 50"#;
             ("ADD @", (4, 5), "unexpected character"),
             ("ADD x y", (6, 7), "expected a comma, found an identifier"),
             ("ADD #-a", (6, 7), "expected a number, found an identifier"),
-            (
-                "ADD MUL",
-                (4, 7),
-                "expected a number or identifier, found a mnemonic",
-            ),
-            (
-                "DB MUL",
-                (3, 6),
-                "expected a number, identifier, or string, found a mnemonic",
-            ),
+            ("ADD MUL", (4, 7), "expected a parameter, found a mnemonic"),
             ("YUP", (0, 3), "unknown operation mnemonic"),
             ("label: DB 0\nlabel: DB 0\n", (12, 17), "label already used"),
         ];
