@@ -1,6 +1,6 @@
 //! Abstract representation of assembly code.
 
-/// The parameter mode.
+/// A parameter mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Mode {
     Positional,
@@ -11,49 +11,42 @@ pub enum Mode {
 /// A parameter in an instruction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Param<'i> {
-    /// A parameter that refers to a variable or label, optionally with an
-    /// offset.
-    ///
-    /// For example the 'x+3' in the following code:
-    /// ```asm
-    /// ADD 0, 1, x+3
-    /// ```
+    /// An identifier, optionally with an offset.
     Ident(Mode, &'i str, i64),
-    /// A parameter that is an exact number.
-    ///
-    /// For example the '7' in the following code:
-    /// ```asm
-    /// ADD x, y, 7
-    /// ```
+    /// An exact number.
     Number(Mode, i64),
 }
 
-/// Raw data.
+/// A parameter in a data instruction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Data<'i> {
-    /// Data that refers to a variable or label, optionally with an offset.
+    /// An identifier, optionally with an offset.
     Ident(&'i str, i64),
-    /// Data that is an exact number.
+    /// An exact number.
     Number(i64),
-    /// Data that is a string literal.
+    /// A string literal.
     String(&'i str),
 }
 
 /// An instruction.
+///
+/// These generally map to an Intcode instruction., however there is also a
+/// pseudo instruction `Data` for placing raw data into the program.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instr<'i> {
     /// Adds two parameters together.
     Add(Param<'i>, Param<'i>, Param<'i>),
     /// Multiplies two parameters together.
     Multiply(Param<'i>, Param<'i>, Param<'i>),
-    /// Move the instruction pointer if the result is non-zero.
-    JumpNonZero(Param<'i>, Param<'i>),
-    /// Move the instruction pointer if the result is zero.
-    JumpZero(Param<'i>, Param<'i>),
     /// Compare two parameters.
     LessThan(Param<'i>, Param<'i>, Param<'i>),
     /// Check if two parameters are equal.
     Equal(Param<'i>, Param<'i>, Param<'i>),
+
+    /// Move the instruction pointer if the result is non-zero.
+    JumpNonZero(Param<'i>, Param<'i>),
+    /// Move the instruction pointer if the result is zero.
+    JumpZero(Param<'i>, Param<'i>),
 
     /// Fetch external data.
     Input(Param<'i>),
