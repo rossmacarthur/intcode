@@ -159,6 +159,7 @@ dependencies = [
  "peter",
  "pretty_assertions",
  "thiserror",
+ "unicode-width",
 ]
 
 [[package]]

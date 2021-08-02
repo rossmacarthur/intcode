@@ -11,6 +11,7 @@ either = "1.6.1"
 indexmap = "1.7.0"
 peter = "0.2.1"
 thiserror = "1.0.26"
+unicode-width = "0.1.8"
 
 [dev-dependencies]
 pretty_assertions = "0.7.2"

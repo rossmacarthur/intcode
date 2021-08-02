@@ -19,16 +19,8 @@ impl Span {
         }
     }
 
-    pub fn width(&self) -> usize {
-        self.n - self.m
-    }
-
-    pub fn range(&self) -> ops::Range<usize> {
-        self.m..self.n
-    }
-
     pub fn as_str<'i>(&self, input: &'i str) -> &'i str {
-        &input[self.range()]
+        &input[self.m..self.n]
     }
 
     pub fn parse<T>(&self, input: &str) -> T

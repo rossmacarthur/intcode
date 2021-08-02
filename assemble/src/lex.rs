@@ -157,7 +157,7 @@ impl<'i> Tokens<'i> {
         let m = i + 1;
         let mut next = || {
             iter.next()
-                .ok_or_else(|| Error::new("undelimited string", m..iter.peek_index()))
+                .ok_or_else(|| Error::new("undelimited string", i..iter.peek_index()))
         };
         loop {
             match next()? {
@@ -224,7 +224,12 @@ impl<'i> Tokens<'i> {
                 Some(self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase))
             }
 
-            Some((i, _)) => return Err(Error::new("unexpected character", i..i + 1)),
+            Some((i, _)) => {
+                return Err(Error::new(
+                    "unexpected character",
+                    i..self.iter.peek_index(),
+                ))
+            }
             None => None,
         };
         Ok(token)

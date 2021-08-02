@@ -3,6 +3,7 @@ use std::path::Path;
 use dairy::Cow;
 use peter::Stylize;
 use thiserror::Error;
+use unicode_width::UnicodeWidthStr;
 
 use crate::span::Span;
 
@@ -23,16 +24,13 @@ pub struct Error {
 fn to_line_col(lines: &[&str], offset: usize) -> (usize, usize) {
     let mut n = 0;
     for (i, line) in lines.iter().enumerate() {
-        let len = line.chars().count() + 1;
+        let len = line.width() + 1;
         if n + len > offset {
             return (i, offset - n);
         }
         n += len;
     }
-    (
-        lines.len(),
-        lines.last().map(|l| l.chars().count()).unwrap_or(0),
-    )
+    (lines.len(), lines.last().map(|l| l.width()).unwrap_or(0))
 }
 
 impl Error {
@@ -49,7 +47,7 @@ impl Error {
         let lines: Vec<_> = input.split_terminator('\n').collect();
 
         let (line, col) = to_line_col(&lines, span.m);
-        let width = span.width();
+        let width = span.as_str(input).width();
         let code = lines.get(line).unwrap_or_else(|| lines.last().unwrap());
         let error = format!(
             "{underline:>pad$} {msg}",
@@ -66,7 +64,7 @@ impl Error {
              {num:>} {pipe} {code}\n \
              {0:pad$} {pipe} {error}\n",
             "",
-            pad = num.chars().count(),
+            pad = num.width(),
             arrow = "-->".bold().blue(),
             filename = filename.display(),
             line = line + 1,
