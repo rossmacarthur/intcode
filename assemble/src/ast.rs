@@ -1,5 +1,7 @@
 //! Abstract representation of assembly code.
 
+use dairy::String;
+
 /// A parameter mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Mode {
@@ -18,14 +20,14 @@ pub enum Param<'i> {
 }
 
 /// A parameter in a data instruction.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Data<'i> {
     /// An identifier, optionally with an offset.
     Ident(&'i str, i64),
     /// An exact number.
     Number(i64),
     /// A string literal.
-    String(&'i str),
+    String(String<'i>),
 }
 
 /// An instruction.

@@ -79,7 +79,7 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
                     }
                     Data::Number(value) => Either::Left(iter::once(value)),
                     Data::String(string) => {
-                        Either::Right(string.as_bytes().iter().map(|&b| i64::from(b)))
+                        Either::Right(string.into_owned().into_bytes().into_iter().map(i64::from))
                     }
                 }));
             }

@@ -16,7 +16,7 @@ loop:
     HLT
 
 message:
-    DB "Hello World!", 10
+    DB "Hello World 😎\n"
 ```
 
 ## Instructions

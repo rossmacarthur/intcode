@@ -12,10 +12,6 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new(m: usize, n: usize) -> Self {
-        Self { m, n }
-    }
-
     pub fn include(self, other: Self) -> Self {
         Self {
             m: self.m,

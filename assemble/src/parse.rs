@@ -44,17 +44,17 @@ impl<'i> Parser<'i> {
     }
 
     /// Returns the next token, ignoring over whitespace and comments.
-    fn peek(&self) -> Result<Option<(Span, Token)>> {
+    fn peek(&self) -> Result<Option<(Span, Token<'i>)>> {
         self.tokens.clone().find(is_not_whitespace_or_comment)
     }
 
     /// Returns the next interesting token.
-    fn peek_interesting(&self) -> Result<Option<(Span, Token)>> {
+    fn peek_interesting(&self) -> Result<Option<(Span, Token<'i>)>> {
         self.tokens.clone().find(is_interesting)
     }
 
     /// Consumes the next token, skipping over whitespace and comments.
-    fn eat(&mut self) -> Result<(Span, Token)> {
+    fn eat(&mut self) -> Result<(Span, Token<'i>)> {
         match self.tokens.find(is_not_whitespace_or_comment)? {
             Some(tk) => Ok(tk),
             None => {
@@ -70,7 +70,7 @@ impl<'i> Parser<'i> {
     }
 
     /// Consumes a token matching the given one.
-    fn eat_token(&mut self, want: Token) -> Result<(Span, Token)> {
+    fn eat_token(&mut self, want: Token<'i>) -> Result<(Span, Token<'i>)> {
         match self.eat()? {
             (span, tk) if tk == want => Ok((span, tk)),
             (span, tk) => Err(Error::new(
@@ -81,7 +81,7 @@ impl<'i> Parser<'i> {
     }
 
     /// Consumes one or more tokens matching the given one.
-    fn eat_all(&mut self, want: Token) -> Result<()> {
+    fn eat_all(&mut self, want: Token<'i>) -> Result<()> {
         while matches!(self.peek()?, Some((_, tk)) if tk == want) {
             self.advance();
         }
@@ -90,10 +90,7 @@ impl<'i> Parser<'i> {
 
     fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
-            (Span { m, n }, Token::String) => {
-                let value = Span::new(m + 1, n - 1).as_str(self.input);
-                Ok((Span { m, n }, Data::String(value)))
-            }
+            (span, Token::String(s)) => Ok((span, Data::String(s))),
             (Span { m, .. }, Token::Minus) => {
                 let (span, _) = self.eat_token(Token::Number)?;
                 let value: i64 = span.parse(self.input);
