@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::ops;
-use std::str::FromStr;
 
 /// Represents a location in the original input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,14 +20,6 @@ impl Span {
 
     pub fn as_str<'i>(&self, input: &'i str) -> &'i str {
         &input[self.m..self.n]
-    }
-
-    pub fn parse<T>(&self, input: &str) -> T
-    where
-        T: FromStr,
-        T::Err: Debug,
-    {
-        self.as_str(input).parse().unwrap()
     }
 }
 

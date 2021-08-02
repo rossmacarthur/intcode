@@ -25,12 +25,12 @@ pub enum Token<'i> {
     Newline,
     /// A sequence of tab (0x09) and/or spaces (0x20).
     Whitespace,
-    /// A decimal number like `19`.
-    Number,
-    /// A variable or label identifier, like `start` or `rb`.
+    /// A variable or label identifier, like `the_end` or `rb`.
     Ident,
     /// An instruction mnemonic, like `EQ` or `HLT`.
     Mnemonic,
+    /// A decimal number like `19`, `0b1011, or `0o777`, or `0x7f`.
+    Number(i64),
     /// String contents include the `"` prefix and suffix.
     String(String<'i>),
     /// Comment contents including the `;` prefix.
@@ -71,9 +71,9 @@ impl Token<'_> {
             Self::Minus => "a minus",
             Self::Newline => "a newline",
             Self::Whitespace => "whitespace",
-            Self::Number => "a number",
             Self::Ident => "an identifier",
             Self::Mnemonic => "a mnemonic",
+            Self::Number(..) => "a number",
             Self::String(..) => "a string",
             Self::Comment => "a comment",
         }
@@ -149,6 +149,26 @@ impl<'i> Tokens<'i> {
         span(token, i..self.iter.peek_index())
     }
 
+    /// Eats the next number.
+    fn lex_number(&mut self, i: usize, start: char) -> Result<(Span, Token<'i>)> {
+        let (m, base) = if start == '0' && matches!(self.iter.peek_char(), Some('b' | 'o' | 'x')) {
+            let base = match self.iter.next().unwrap().1 {
+                'b' => 2,
+                'o' => 8,
+                'x' => 16,
+                _ => unreachable!(),
+            };
+            (self.iter.peek_index(), base)
+        } else {
+            (i, 10)
+        };
+        while self.lex_if(char::is_ascii_alphanumeric) {}
+        let n = self.iter.peek_index();
+        i64::from_str_radix(&self.input[m..n], base)
+            .map(|num| span(Token::Number(num), i..n))
+            .map_err(|_| Error::new(format!("invalid base {} literal", base), i..n))
+    }
+
     /// Eats the next string.
     fn lex_string(&mut self, i: usize) -> Result<(Span, Token<'i>)> {
         let Self { input, iter } = self;
@@ -211,11 +231,9 @@ impl<'i> Tokens<'i> {
             Some((i, '+')) => Some(span(Token::Plus, i)),
             Some((i, '-')) => Some(span(Token::Minus, i)),
             Some((i, '\n')) => Some(span(Token::Newline, i)),
+            Some((i, c)) if c.is_ascii_digit() => Some(self.lex_number(i, c)?),
             Some((i, c)) if c.is_ascii_whitespace() => {
                 Some(self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace))
-            }
-            Some((i, c)) if c.is_ascii_digit() => {
-                Some(self.lex_token(Token::Number, i, char::is_ascii_digit))
             }
             Some((i, c)) if is_identifier(&c) => {
                 Some(self.lex_token(Token::Ident, i, is_identifier))
@@ -223,7 +241,6 @@ impl<'i> Tokens<'i> {
             Some((i, c)) if c.is_ascii_uppercase() => {
                 Some(self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase))
             }
-
             Some((i, _)) => {
                 return Err(Error::new(
                     "unexpected character",
@@ -284,17 +301,26 @@ mod tests {
                 span(Token::Comma, 14..15),
                 span(Token::Whitespace, 15..16),
                 span(Token::Hash, 16..17),
-                span(Token::Number, 17..19),
+                span(Token::Number(19), 17..19),
                 span(Token::Comma, 19..20),
                 span(Token::Whitespace, 20..21),
                 span(Token::Ident, 21..23),
                 span(Token::Plus, 23..24),
-                span(Token::Number, 24..25),
+                span(Token::Number(1), 24..25),
                 span(Token::Whitespace, 25..28),
                 span(Token::Comment, 28..47),
                 span(Token::Newline, 47..48),
             ]
         );
+    }
+
+    #[test]
+    fn numbers() {
+        let tests = ["0b10011", "0o23", "19", "0x13"];
+        for input in tests {
+            let tokens = tokenize(input);
+            assert!(matches!(&*tokens, &[(_, Token::Number(19))]));
+        }
     }
 
     #[test]

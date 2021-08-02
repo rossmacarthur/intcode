@@ -51,13 +51,13 @@ There are two types of operands.
 
 - **Number**
 
-  A decimal number. This can be used for specifying manual addresses, address
-  offsets, or exact values. For example: the following reads in a value, minuses
-  3 from it, and outputs the result.
+  A binary, octal, decimal, or hexadecimal number. This can be used for
+  specifying manual addresses, address offsets, or exact values. For example:
+  the following reads in a value, minuses 3 from it, and outputs the result.
   ```
   IN  x
-  ADD x, #-3, x+1
-  OUT x+1
+  ADD x, #-0b11, x+1
+  OUT x+0x1
   ```
 
 ### Operand modes

@@ -80,6 +80,17 @@ impl<'i> Parser<'i> {
         }
     }
 
+    /// Consumes a number.
+    fn eat_number(&mut self) -> Result<(Span, i64)> {
+        match self.eat()? {
+            (span, Token::Number(value)) => Ok((span, value)),
+            (span, tk) => Err(Error::new(
+                format!("expected a number, found {}", tk.human()),
+                span,
+            )),
+        }
+    }
+
     /// Consumes one or more tokens matching the given one.
     fn eat_all(&mut self, want: Token<'i>) -> Result<()> {
         while matches!(self.peek()?, Some((_, tk)) if tk == want) {
@@ -91,28 +102,22 @@ impl<'i> Parser<'i> {
     fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
             (span, Token::String(s)) => Ok((span, Data::String(s))),
-            (Span { m, .. }, Token::Minus) => {
-                let (span, _) = self.eat_token(Token::Number)?;
-                let value: i64 = span.parse(self.input);
-                Ok((Span { m, n: span.n }, Data::Number(-value)))
+            (span, Token::Minus) => {
+                let (num, value) = self.eat_number()?;
+                Ok((span.include(num), Data::Number(-value)))
             }
-            (span, Token::Number) => {
-                let value = span.parse(self.input);
-                Ok((span, Data::Number(value)))
-            }
+            (span, Token::Number(value)) => Ok((span, Data::Number(value))),
             (span, Token::Ident) => {
                 let ident = span.as_str(self.input);
                 match self.peek()? {
                     Some((_, Token::Plus)) => {
                         self.advance();
-                        let (num, _) = self.eat_token(Token::Number)?;
-                        let value: i64 = num.parse(self.input);
+                        let (num, value) = self.eat_number()?;
                         Ok((span.include(num), Data::Ident(ident, value)))
                     }
                     Some((_, Token::Minus)) => {
                         self.advance();
-                        let (num, _) = self.eat_token(Token::Number)?;
-                        let value: i64 = num.parse(self.input);
+                        let (num, value) = self.eat_number()?;
                         Ok((span.include(num), Data::Ident(ident, -value)))
                     }
                     _ => Ok((span, Data::Ident(ident, 0))),
