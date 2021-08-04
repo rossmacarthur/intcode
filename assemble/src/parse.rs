@@ -16,6 +16,11 @@ struct Parser<'i> {
     labels: HashSet<&'i str>,
 }
 
+enum Sign {
+    Negative,
+    Positive,
+}
+
 fn is_not_whitespace_or_comment(token: &Token) -> bool {
     !matches!(token, Token::Whitespace | Token::Comment)
 }
@@ -80,17 +85,6 @@ impl<'i> Parser<'i> {
         }
     }
 
-    /// Consumes a number.
-    fn eat_number(&mut self) -> Result<(Span, i64)> {
-        match self.eat()? {
-            (span, Token::Number(value)) => Ok((span, value)),
-            (span, tk) => Err(Error::new(
-                format!("expected a number, found {}", tk.human()),
-                span,
-            )),
-        }
-    }
-
     /// Consumes one or more tokens matching the given one.
     fn eat_all(&mut self, want: Token<'i>) -> Result<()> {
         while matches!(self.peek()?, Some((_, tk)) if tk == want) {
@@ -99,26 +93,66 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
+    fn parse_number(&mut self, span: Span, sign: Sign) -> Result<i64> {
+        let digits = span.as_str(self.input).as_bytes();
+        let (i, radix) = match digits {
+            [b'0', b'b', ..] => (2, 2),
+            [b'0', b'o', ..] => (2, 8),
+            [b'0', b'x', ..] => (2, 16),
+            _ => (0, 10),
+        };
+        digits[i..]
+            .iter()
+            .enumerate()
+            .filter(|(_, &d)| d != b'_')
+            .try_fold(0i64, |acc, (j, &d)| {
+                let x = (d as char).to_digit(radix).ok_or_else(|| {
+                    Error::new(
+                        format!("invalid digit for base {} literal", radix),
+                        span.m + i + j,
+                    )
+                })?;
+                let err = || {
+                    Error::new(
+                        format!("base {} literal out of range for 64-bit integer", radix),
+                        span,
+                    )
+                };
+                let value = acc.checked_mul(radix.into()).ok_or_else(err)?;
+                Ok(match sign {
+                    Sign::Positive => value.checked_add(x.into()),
+                    Sign::Negative => value.checked_sub(x.into()),
+                }
+                .ok_or_else(err)?)
+            })
+    }
+
     fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
             (span, Token::String(s)) => Ok((span, Data::String(s))),
             (span, Token::Minus) => {
-                let (num, value) = self.eat_number()?;
-                Ok((span.include(num), Data::Number(-value)))
+                let (s, _) = self.eat_token(Token::Number)?;
+                let value = self.parse_number(s, Sign::Negative)?;
+                Ok((span.include(s), Data::Number(value)))
             }
-            (span, Token::Number(value)) => Ok((span, Data::Number(value))),
+            (span, Token::Number) => {
+                let value = self.parse_number(span, Sign::Positive)?;
+                Ok((span, Data::Number(value)))
+            }
             (span, Token::Ident) => {
                 let ident = span.as_str(self.input);
                 match self.peek()? {
-                    Some((_, Token::Plus)) => {
-                        self.advance();
-                        let (num, value) = self.eat_number()?;
-                        Ok((span.include(num), Data::Ident(ident, value)))
-                    }
                     Some((_, Token::Minus)) => {
                         self.advance();
-                        let (num, value) = self.eat_number()?;
-                        Ok((span.include(num), Data::Ident(ident, -value)))
+                        let (s, _) = self.eat_token(Token::Number)?;
+                        let offset = self.parse_number(s, Sign::Negative)?;
+                        Ok((span.include(s), Data::Ident(ident, offset)))
+                    }
+                    Some((_, Token::Plus)) => {
+                        self.advance();
+                        let (s, _) = self.eat_token(Token::Number)?;
+                        let offset = self.parse_number(s, Sign::Positive)?;
+                        Ok((span.include(s), Data::Ident(ident, offset)))
                     }
                     _ => Ok((span, Data::Ident(ident, 0))),
                 }

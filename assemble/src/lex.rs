@@ -30,7 +30,7 @@ pub enum Token<'i> {
     /// An instruction mnemonic, like `EQ` or `HLT`.
     Mnemonic,
     /// A decimal number like `19`, `0b1011, or `0o777`, or `0x7f`.
-    Number(i64),
+    Number,
     /// String contents include the `"` prefix and suffix.
     String(String<'i>),
     /// Comment contents including the `;` prefix.
@@ -73,7 +73,7 @@ impl Token<'_> {
             Self::Whitespace => "whitespace",
             Self::Ident => "an identifier",
             Self::Mnemonic => "a mnemonic",
-            Self::Number(..) => "a number",
+            Self::Number => "a number",
             Self::String(..) => "a string",
             Self::Comment => "a comment",
         }
@@ -122,6 +122,10 @@ fn is_identifier(c: &char) -> bool {
     matches!(c, 'a'..='z' | '_')
 }
 
+fn is_numeric(c: &char) -> bool {
+    matches!(*c, '0'..='9' | 'A'..='Z' | 'a'..='z' | '_')
+}
+
 impl<'i> Tokens<'i> {
     /// Construct a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
@@ -147,26 +151,6 @@ impl<'i> Tokens<'i> {
     {
         while self.lex_if(predicate) {}
         span(token, i..self.iter.peek_index())
-    }
-
-    /// Eats the next number.
-    fn lex_number(&mut self, i: usize, start: char) -> Result<(Span, Token<'i>)> {
-        let (m, base) = if start == '0' && matches!(self.iter.peek_char(), Some('b' | 'o' | 'x')) {
-            let base = match self.iter.next().unwrap().1 {
-                'b' => 2,
-                'o' => 8,
-                'x' => 16,
-                _ => unreachable!(),
-            };
-            (self.iter.peek_index(), base)
-        } else {
-            (i, 10)
-        };
-        while self.lex_if(char::is_ascii_alphanumeric) {}
-        let n = self.iter.peek_index();
-        i64::from_str_radix(&self.input[m..n], base)
-            .map(|num| span(Token::Number(num), i..n))
-            .map_err(|_| Error::new(format!("invalid base {} literal", base), i..n))
     }
 
     /// Eats the next string.
@@ -222,34 +206,42 @@ impl<'i> Tokens<'i> {
 
     /// Returns the next token in the iterator.
     pub fn next(&mut self) -> Result<Option<(Span, Token<'i>)>> {
-        let token = match self.iter.next() {
-            Some((i, '"')) => Some(self.lex_string(i)?),
-            Some((i, ';')) => Some(self.lex_token(Token::Comment, i, |&c| c != '\n')),
-            Some((i, ':')) => Some(span(Token::Colon, i)),
-            Some((i, ',')) => Some(span(Token::Comma, i)),
-            Some((i, '#')) => Some(span(Token::Hash, i)),
-            Some((i, '+')) => Some(span(Token::Plus, i)),
-            Some((i, '-')) => Some(span(Token::Minus, i)),
-            Some((i, '\n')) => Some(span(Token::Newline, i)),
-            Some((i, c)) if c.is_ascii_digit() => Some(self.lex_number(i, c)?),
-            Some((i, c)) if c.is_ascii_whitespace() => {
-                Some(self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace))
+        let next = match self.iter.next() {
+            None => return Ok(None),
+            Some(next) => next,
+        };
+        let token = match next {
+            // Single character to token mappings.
+            (i, ':') => span(Token::Colon, i),
+            (i, ',') => span(Token::Comma, i),
+            (i, '#') => span(Token::Hash, i),
+            (i, '+') => span(Token::Plus, i),
+            (i, '-') => span(Token::Minus, i),
+            (i, '\n') => span(Token::Newline, i),
+            (i, c) if c.is_ascii_whitespace() => {
+                self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace)
             }
-            Some((i, c)) if is_identifier(&c) => {
-                Some(self.lex_token(Token::Ident, i, is_identifier))
+
+            // Multi-character tokens with a distinct starting character.
+            (i, ';') => self.lex_token(Token::Comment, i, |&c| c != '\n'),
+            (i, '"') => self.lex_string(i)?,
+
+            // Multi-character tokens that use many different characters.
+            (i, c) if c.is_ascii_digit() => self.lex_token(Token::Number, i, is_numeric),
+            (i, c) if c.is_ascii_uppercase() => {
+                self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase)
             }
-            Some((i, c)) if c.is_ascii_uppercase() => {
-                Some(self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase))
-            }
-            Some((i, _)) => {
+            (i, c) if is_identifier(&c) => self.lex_token(Token::Ident, i, is_identifier),
+
+            // Any other character is considered invalid.
+            (i, _) => {
                 return Err(Error::new(
                     "unexpected character",
                     i..self.iter.peek_index(),
                 ))
             }
-            None => None,
         };
-        Ok(token)
+        Ok(Some(token))
     }
 
     /// Finds the next token matching the predicate.
@@ -301,12 +293,12 @@ mod tests {
                 span(Token::Comma, 14..15),
                 span(Token::Whitespace, 15..16),
                 span(Token::Hash, 16..17),
-                span(Token::Number(19), 17..19),
+                span(Token::Number, 17..19),
                 span(Token::Comma, 19..20),
                 span(Token::Whitespace, 20..21),
                 span(Token::Ident, 21..23),
                 span(Token::Plus, 23..24),
-                span(Token::Number(1), 24..25),
+                span(Token::Number, 24..25),
                 span(Token::Whitespace, 25..28),
                 span(Token::Comment, 28..47),
                 span(Token::Newline, 47..48),
@@ -316,10 +308,12 @@ mod tests {
 
     #[test]
     fn numbers() {
-        let tests = ["0b10011", "0o23", "19", "0x13"];
+        let tests = [
+            "0b10011", "0o23", "19", "0x13", "0b1_0011", "0o_2_3_", "1_9_", "0x_13_",
+        ];
         for input in tests {
             let tokens = tokenize(input);
-            assert!(matches!(&*tokens, &[(_, Token::Number(19))]));
+            assert!(matches!(&*tokens, &[(_, Token::Number)]));
         }
     }
 
