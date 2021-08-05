@@ -2,15 +2,12 @@
 
 use std::ops;
 use std::str;
-use std::string::String as StdString;
-
-use dairy::String;
 
 use crate::error::{Error, Result};
 use crate::span::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Token<'i> {
+pub enum Token {
     /// `:`
     Colon,
     /// `,`
@@ -31,15 +28,15 @@ pub enum Token<'i> {
     Mnemonic,
     /// A decimal number like `19`, `0b1011, or `0o777`, or `0x7f`.
     Number,
-    /// String contents include the `"` prefix and suffix.
-    String(String<'i>),
+    /// A string like `"Hello World!\n"`.
+    String,
     /// Comment contents including the `;` prefix.
     Comment,
 }
 
 /// An iterator over (index, char) in a string.
 #[derive(Debug, Clone)]
-struct CharIndices<'i> {
+pub struct CharIndices<'i> {
     iter: str::CharIndices<'i>,
     len: usize,
 }
@@ -61,7 +58,7 @@ fn span(token: Token, span: impl Into<Span>) -> (Span, Token) {
     (span.into(), token)
 }
 
-impl Token<'_> {
+impl Token {
     pub fn human(&self) -> &'static str {
         match *self {
             Self::Colon => "a colon",
@@ -74,7 +71,7 @@ impl Token<'_> {
             Self::Ident => "an identifier",
             Self::Mnemonic => "a mnemonic",
             Self::Number => "a number",
-            Self::String(..) => "a string",
+            Self::String => "a string",
             Self::Comment => "a comment",
         }
     }
@@ -145,7 +142,7 @@ impl<'i> Tokens<'i> {
     }
 
     /// Eats the next token, including all characters satisfying the predicate.
-    fn lex_token<P>(&mut self, token: Token<'i>, i: usize, predicate: P) -> (Span, Token<'i>)
+    fn lex_token<P>(&mut self, token: Token, i: usize, predicate: P) -> (Span, Token)
     where
         P: Fn(&char) -> bool + Copy,
     {
@@ -154,58 +151,28 @@ impl<'i> Tokens<'i> {
     }
 
     /// Eats the next string.
-    fn lex_string(&mut self, i: usize) -> Result<(Span, Token<'i>)> {
-        let Self { input, iter } = self;
-
-        let mut string: Option<StdString> = None;
-        let m = i + 1;
-        let mut next = || {
-            iter.next()
-                .ok_or_else(|| Error::new("undelimited string", i..iter.peek_index()))
-        };
+    fn lex_string(&mut self, i: usize) -> Result<(Span, Token)> {
+        let mut curr = '"';
         loop {
-            match next()? {
-                (n, '"') => {
-                    let tk = match string {
-                        Some(o) => Token::String(String::owned(o)),
-                        None => Token::String(String::borrowed(&input[m..n])),
-                    };
-                    break Ok(span(tk, i..iter.peek_index()));
+            match self.iter.next() {
+                None => {
+                    break Err(Error::new("undelimited string", i..self.iter.peek_index()));
                 }
-                (n, '\\') => {
-                    let c = match next()?.1 {
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        '\\' => '\\',
-                        '"' => '"',
-                        _ => {
-                            return Err(Error::new(
-                                "unknown escape character",
-                                n..iter.peek_index(),
-                            ))
-                        }
-                    };
-                    match string {
-                        Some(ref mut o) => o.push(c),
-                        None => {
-                            let mut o = StdString::from(&input[m..n]);
-                            o.push(c);
-                            string = Some(o)
-                        }
-                    }
+                Some((j, '\n')) => {
+                    break Err(Error::new("undelimited string", i..j));
                 }
-                (_, c) => {
-                    if let Some(o) = string.as_mut() {
-                        o.push(c);
-                    }
+                Some((_, '"')) if curr != '\\' => {
+                    break Ok(span(Token::String, i..self.iter.peek_index()));
+                }
+                Some((_, c)) => {
+                    curr = c;
                 }
             }
         }
     }
 
     /// Returns the next token in the iterator.
-    pub fn next(&mut self) -> Result<Option<(Span, Token<'i>)>> {
+    pub fn next(&mut self) -> Result<Option<(Span, Token)>> {
         let next = match self.iter.next() {
             None => return Ok(None),
             Some(next) => next,
@@ -245,9 +212,9 @@ impl<'i> Tokens<'i> {
     }
 
     /// Finds the next token matching the predicate.
-    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<(Span, Token<'i>)>>
+    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<(Span, Token)>>
     where
-        P: FnMut(&Token<'i>) -> bool,
+        P: FnMut(&Token) -> bool,
     {
         loop {
             match self.next()? {
@@ -266,7 +233,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     impl<'i> Iterator for Tokens<'i> {
-        type Item = Result<(Span, Token<'i>)>;
+        type Item = Result<(Span, Token)>;
 
         fn next(&mut self) -> Option<Self::Item> {
             self.next().transpose()
@@ -274,7 +241,7 @@ mod tests {
     }
 
     #[track_caller]
-    fn tokenize<'i>(input: &'i str) -> Vec<(Span, Token<'i>)> {
+    fn tokenize<'i>(input: &'i str) -> Vec<(Span, Token)> {
         Tokens::new(input).collect::<Result<_>>().unwrap()
     }
 
@@ -320,18 +287,14 @@ mod tests {
     #[test]
     fn strings() {
         let tests = [
-            ("\"Hello World!\"", "Hello World!", 0..14, true),
-            ("\"Hello World!\\n\"", "Hello World!\n", 0..16, false),
-            ("\"😎\"", "😎", 0..6, true),
-            ("\"😎\\t\"", "😎\t", 0..8, false),
+            ("\"Hello World!\"", 0..14),
+            ("\"Hello World!\\n\"", 0..16),
+            ("\"😎\"", 0..6),
+            ("\"😎\\t\"", 0..8),
         ];
-        for (input, output, range, is_borrowed) in tests {
+        for (input, range) in tests {
             let tokens = tokenize(input);
-            match &*tokens {
-                &[(_, Token::String(ref s))] => assert_eq!(s.is_borrowed(), is_borrowed),
-                _ => unreachable!(),
-            }
-            assert_eq!(tokens, [span(Token::String(String::from(output)), range)]);
+            assert_eq!(tokens, [span(Token::String, range)]);
         }
     }
 

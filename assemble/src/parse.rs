@@ -1,6 +1,9 @@
 //! Parse the input into a syntax tree.
 
 use std::collections::HashSet;
+use std::string::String as StdString;
+
+use dairy::String;
 
 use crate::ast::{Data, Instr, Mode, Param, Program, Stmt};
 use crate::error::{Error, Result};
@@ -49,17 +52,17 @@ impl<'i> Parser<'i> {
     }
 
     /// Returns the next token, ignoring over whitespace and comments.
-    fn peek(&self) -> Result<Option<(Span, Token<'i>)>> {
+    fn peek(&self) -> Result<Option<(Span, Token)>> {
         self.tokens.clone().find(is_not_whitespace_or_comment)
     }
 
     /// Returns the next interesting token.
-    fn peek_interesting(&self) -> Result<Option<(Span, Token<'i>)>> {
+    fn peek_interesting(&self) -> Result<Option<(Span, Token)>> {
         self.tokens.clone().find(is_interesting)
     }
 
     /// Consumes the next token, skipping over whitespace and comments.
-    fn eat(&mut self) -> Result<(Span, Token<'i>)> {
+    fn eat(&mut self) -> Result<(Span, Token)> {
         match self.tokens.find(is_not_whitespace_or_comment)? {
             Some(tk) => Ok(tk),
             None => {
@@ -75,7 +78,7 @@ impl<'i> Parser<'i> {
     }
 
     /// Consumes a token matching the given one.
-    fn eat_token(&mut self, want: Token<'i>) -> Result<(Span, Token<'i>)> {
+    fn eat_token(&mut self, want: Token) -> Result<(Span, Token)> {
         match self.eat()? {
             (span, tk) if tk == want => Ok((span, tk)),
             (span, tk) => Err(Error::new(
@@ -86,7 +89,7 @@ impl<'i> Parser<'i> {
     }
 
     /// Consumes one or more tokens matching the given one.
-    fn eat_all(&mut self, want: Token<'i>) -> Result<()> {
+    fn eat_all(&mut self, want: Token) -> Result<()> {
         while matches!(self.peek()?, Some((_, tk)) if tk == want) {
             self.advance();
         }
@@ -127,9 +130,44 @@ impl<'i> Parser<'i> {
             })
     }
 
+    fn parse_string(&mut self, span: Span) -> Result<String<'i>> {
+        let raw = span.as_str(self.input);
+        if raw.contains('\\') {
+            let mut iter = raw.char_indices().map(|(i, c)| (span.m + i, c));
+            let mut value = StdString::new();
+            while let Some((_, c)) = iter.next() {
+                match c {
+                    '"' => continue,
+                    '\\' => {
+                        let (i, esc) = iter.next().unwrap();
+                        let c = match esc {
+                            'n' => '\n',
+                            'r' => '\r',
+                            't' => '\t',
+                            '\\' => '\\',
+                            '"' => '"',
+                            _ => {
+                                let j = iter.next().unwrap().0;
+                                return Err(Error::new("unknown escape character", i..j));
+                            }
+                        };
+                        value.push(c);
+                    }
+                    c => value.push(c),
+                }
+            }
+            Ok(String::owned(value))
+        } else {
+            Ok(String::borrowed(&raw[1..raw.len() - 1]))
+        }
+    }
+
     fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
-            (span, Token::String(s)) => Ok((span, Data::String(s))),
+            (span, Token::String) => {
+                let value = self.parse_string(span)?;
+                Ok((span, Data::String(value)))
+            }
             (span, Token::Minus) => {
                 let (s, _) = self.eat_token(Token::Number)?;
                 let value = self.parse_number(s, Sign::Negative)?;
@@ -315,7 +353,28 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn basic() {
+    fn eat_raw_param_strings() {
+        let tests = [
+            ("\"Hello World!\"", "Hello World!", 0..14, true),
+            ("\"Hello World!\\n\"", "Hello World!\n", 0..16, false),
+            ("\"😎\"", "😎", 0..6, true),
+            ("\"😎\\t\"", "😎\t", 0..8, false),
+        ];
+        for (asm, string, range, is_borrowed) in tests {
+            let (span, data) = Parser::new(asm).eat_raw_param().unwrap();
+            assert_eq!(span, range.into());
+            match data {
+                Data::String(value) => {
+                    assert_eq!(value, string);
+                    assert_eq!(value.is_borrowed(), is_borrowed);
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn eat_program_basic() {
         let asm = r#"
 ; An example program from Advent of Code 2019 Day 2.
 
@@ -368,18 +427,19 @@ c: DB 50"#;
     }
 
     #[test]
-    fn errors() {
-        let tests: &[(&str, (usize, usize), &str)] = &[
-            ("ADD", (3, 4), "unexpected end of input"),
-            ("ADD @", (4, 5), "unexpected character"),
-            ("ADD x y", (6, 7), "expected a comma, found an identifier"),
-            ("ADD #-a", (6, 7), "expected a number, found an identifier"),
-            ("ADD MUL", (4, 7), "expected a parameter, found a mnemonic"),
-            ("YUP", (0, 3), "unknown operation mnemonic"),
-            ("label: DB 0\nlabel: DB 0\n", (12, 17), "label already used"),
+    fn eat_program_errors() {
+        let tests = [
+            ("ADD", 3..4, "unexpected end of input"),
+            ("ADD @", 4..5, "unexpected character"),
+            ("ADD x y", 6..7, "expected a comma, found an identifier"),
+            ("ADD #-a", 6..7, "expected a number, found an identifier"),
+            ("ADD MUL", 4..7, "expected a parameter, found a mnemonic"),
+            ("YUP", 0..3, "unknown operation mnemonic"),
+            ("rb: DB 0", 0..2, "label is reserved for the relative base"),
+            ("label: DB 0\nlabel: DB 0", 12..17, "label already used"),
         ];
-        for (asm, (m, n), msg) in tests {
-            assert_eq!(program(asm).unwrap_err(), Error::new(*msg, *m..*n));
+        for (asm, span, msg) in tests {
+            assert_eq!(program(asm).unwrap_err(), Error::new(msg, span));
         }
     }
 }
