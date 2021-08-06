@@ -1,10 +1,13 @@
 //! Parse the input into a syntax tree.
 
+mod integer;
+mod string;
+mod unpack;
+
 use std::collections::HashSet;
-use std::string::String as StdString;
 
-use dairy::String;
-
+use self::integer::Sign;
+use self::unpack::TryUnpack;
 use crate::ast::{Data, Instr, Mode, Param, Program, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Token, Tokens};
@@ -19,26 +22,24 @@ struct Parser<'i> {
     labels: HashSet<&'i str>,
 }
 
-enum Sign {
-    Negative,
-    Positive,
+fn is_eof(tk: Option<Token>) -> bool {
+    matches!(tk, None)
 }
 
-fn is_not_whitespace_or_comment(token: &Token) -> bool {
-    !matches!(token, Token::Whitespace | Token::Comment)
+fn is_hash(tk: Option<Token>) -> bool {
+    matches!(tk, Some(Token::Hash))
 }
 
-fn is_interesting(token: &Token) -> bool {
-    !matches!(token, Token::Newline | Token::Whitespace | Token::Comment)
+fn is_not_newline_or_eof(tk: Option<Token>) -> bool {
+    !matches!(tk, Some(Token::Newline) | None)
 }
 
-fn with_mode<'i>(span: Span, data: Data<'i>, mode: Mode) -> Result<Param<'i>> {
-    match data {
-        Data::Ident("rb", offset) => Ok(Param::Number(Mode::Relative, offset)),
-        Data::Ident(ident, offset) => Ok(Param::Ident(mode, ident, offset)),
-        Data::Number(value) => Ok(Param::Number(mode, value)),
-        _ => Err(Error::new("string parameter not allowed here", span)),
-    }
+fn is_another_param(tk: Option<Token>) -> bool {
+    matches!(tk, Some(Token::Comma)) || is_not_newline_or_eof(tk)
+}
+
+fn is_not_whitespace_or_comment(tk: &Token) -> bool {
+    !matches!(tk, Token::Whitespace | Token::Comment)
 }
 
 impl<'i> Parser<'i> {
@@ -51,14 +52,16 @@ impl<'i> Parser<'i> {
         }
     }
 
-    /// Returns the next token, ignoring over whitespace and comments.
+    /// Returns the next token, ignoring whitespace and comments.
     fn peek(&self) -> Result<Option<(Span, Token)>> {
         self.tokens.clone().find(is_not_whitespace_or_comment)
     }
 
-    /// Returns the next interesting token.
-    fn peek_interesting(&self) -> Result<Option<(Span, Token)>> {
-        self.tokens.clone().find(is_interesting)
+    fn peek_if<P>(&self, predicate: P) -> Result<bool>
+    where
+        P: FnOnce(Option<Token>) -> bool,
+    {
+        Ok(predicate(self.peek()?.map(|(_, tk)| tk)))
     }
 
     /// Consumes the next token, skipping over whitespace and comments.
@@ -67,7 +70,7 @@ impl<'i> Parser<'i> {
             Some(tk) => Ok(tk),
             None => {
                 let m = self.input.chars().count();
-                Err(Error::new("unexpected end of input", m..m + 1))
+                Err(Error::new("unexpected end of input", m..m))
             }
         }
     }
@@ -77,8 +80,16 @@ impl<'i> Parser<'i> {
         self.eat().unwrap();
     }
 
-    /// Consumes a token matching the given one.
-    fn eat_token(&mut self, want: Token) -> Result<(Span, Token)> {
+    /// Consumes zero or more tokens matching the given one.
+    fn eat_all(&mut self, want: Token) -> Result<()> {
+        while matches!(self.peek()?, Some((_, tk)) if tk == want) {
+            self.advance();
+        }
+        Ok(())
+    }
+
+    /// Consumes a token that must match the given one.
+    fn expect(&mut self, want: Token) -> Result<(Span, Token)> {
         match self.eat()? {
             (span, tk) if tk == want => Ok((span, tk)),
             (span, tk) => Err(Error::new(
@@ -88,93 +99,19 @@ impl<'i> Parser<'i> {
         }
     }
 
-    /// Consumes one or more tokens matching the given one.
-    fn eat_all(&mut self, want: Token) -> Result<()> {
-        while matches!(self.peek()?, Some((_, tk)) if tk == want) {
-            self.advance();
-        }
-        Ok(())
-    }
-
-    fn parse_number(&mut self, span: Span, sign: Sign) -> Result<i64> {
-        let digits = span.as_str(self.input).as_bytes();
-        let (i, radix) = match digits {
-            [b'0', b'b', ..] => (2, 2),
-            [b'0', b'o', ..] => (2, 8),
-            [b'0', b'x', ..] => (2, 16),
-            _ => (0, 10),
-        };
-        digits[i..]
-            .iter()
-            .enumerate()
-            .filter(|(_, &d)| d != b'_')
-            .try_fold(0i64, |acc, (j, &d)| {
-                let x = (d as char).to_digit(radix).ok_or_else(|| {
-                    Error::new(
-                        format!("invalid digit for base {} literal", radix),
-                        span.m + i + j,
-                    )
-                })?;
-                let err = || {
-                    Error::new(
-                        format!("base {} literal out of range for 64-bit integer", radix),
-                        span,
-                    )
-                };
-                let value = acc.checked_mul(radix.into()).ok_or_else(err)?;
-                Ok(match sign {
-                    Sign::Positive => value.checked_add(x.into()),
-                    Sign::Negative => value.checked_sub(x.into()),
-                }
-                .ok_or_else(err)?)
-            })
-    }
-
-    fn parse_string(&mut self, span: Span) -> Result<String<'i>> {
-        let raw = span.as_str(self.input);
-        if raw.contains('\\') {
-            let mut iter = raw.char_indices().map(|(i, c)| (span.m + i, c));
-            let mut value = StdString::new();
-            while let Some((_, c)) = iter.next() {
-                match c {
-                    '"' => continue,
-                    '\\' => {
-                        let (i, esc) = iter.next().unwrap();
-                        let c = match esc {
-                            'n' => '\n',
-                            'r' => '\r',
-                            't' => '\t',
-                            '\\' => '\\',
-                            '"' => '"',
-                            _ => {
-                                let j = iter.next().unwrap().0;
-                                return Err(Error::new("unknown escape character", i..j));
-                            }
-                        };
-                        value.push(c);
-                    }
-                    c => value.push(c),
-                }
-            }
-            Ok(String::owned(value))
-        } else {
-            Ok(String::borrowed(&raw[1..raw.len() - 1]))
-        }
-    }
-
-    fn eat_raw_param(&mut self) -> Result<(Span, Data<'i>)> {
+    fn eat_data_param(&mut self) -> Result<(Span, Data<'i>)> {
         match self.eat()? {
             (span, Token::String) => {
-                let value = self.parse_string(span)?;
+                let value = string::parse(self.input, span)?;
                 Ok((span, Data::String(value)))
             }
             (span, Token::Minus) => {
-                let (s, _) = self.eat_token(Token::Number)?;
-                let value = self.parse_number(s, Sign::Negative)?;
+                let (s, _) = self.expect(Token::Number)?;
+                let value = integer::parse(self.input, s, Sign::Negative)?;
                 Ok((span.include(s), Data::Number(value)))
             }
             (span, Token::Number) => {
-                let value = self.parse_number(span, Sign::Positive)?;
+                let value = integer::parse(self.input, span, Sign::Positive)?;
                 Ok((span, Data::Number(value)))
             }
             (span, Token::Ident) => {
@@ -182,14 +119,14 @@ impl<'i> Parser<'i> {
                 match self.peek()? {
                     Some((_, Token::Minus)) => {
                         self.advance();
-                        let (s, _) = self.eat_token(Token::Number)?;
-                        let offset = self.parse_number(s, Sign::Negative)?;
+                        let (s, _) = self.expect(Token::Number)?;
+                        let offset = integer::parse(self.input, s, Sign::Negative)?;
                         Ok((span.include(s), Data::Ident(ident, offset)))
                     }
                     Some((_, Token::Plus)) => {
                         self.advance();
-                        let (s, _) = self.eat_token(Token::Number)?;
-                        let offset = self.parse_number(s, Sign::Positive)?;
+                        let (s, _) = self.expect(Token::Number)?;
+                        let offset = integer::parse(self.input, s, Sign::Positive)?;
                         Ok((span.include(s), Data::Ident(ident, offset)))
                     }
                     _ => Ok((span, Data::Ident(ident, 0))),
@@ -202,100 +139,110 @@ impl<'i> Parser<'i> {
         }
     }
 
-    /// Consumes the next parameter.
     fn eat_param(&mut self) -> Result<Param<'i>> {
-        match self.peek()? {
-            Some((_, Token::Hash)) => {
-                self.advance();
-                let (span, data) = self.eat_raw_param()?;
-                with_mode(span, data, Mode::Immediate)
-            }
-            _ => {
-                let (span, data) = self.eat_raw_param()?;
-                with_mode(span, data, Mode::Positional)
-            }
+        let with_mode = |span, data, mode| {
+            let param = match data {
+                Data::Ident("rb", offset) => Param::Number(Mode::Relative, offset),
+                Data::Ident(ident, offset) => Param::Ident(mode, ident, offset),
+                Data::Number(value) => Param::Number(mode, value),
+                _ => return Err(Error::new("string parameter not allowed here", span)),
+            };
+            Ok(param)
+        };
+        if self.peek_if(is_hash)? {
+            self.advance();
+            let (span, data) = self.eat_data_param()?;
+            with_mode(span, data, Mode::Immediate)
+        } else {
+            let (span, data) = self.eat_data_param()?;
+            with_mode(span, data, Mode::Positional)
         }
     }
 
-    /// Consumes the next two parameters.
-    fn eat_params2(&mut self) -> Result<(Param<'i>, Param<'i>)> {
-        let x = self.eat_param()?;
-        self.eat_token(Token::Comma)?;
-        let y = self.eat_param()?;
-        Ok((x, y))
+    fn eat_params<T>(&mut self, span: Span) -> Result<T>
+    where
+        Vec<Param<'i>>: TryUnpack<T>,
+    {
+        let mut params = Vec::new();
+        if self.peek_if(is_not_newline_or_eof)? {
+            params.push(self.eat_param()?);
+            while self.peek_if(is_another_param)? {
+                self.expect(Token::Comma)?;
+                params.push(self.eat_param()?);
+            }
+        }
+        params.try_unpack().map_err(|(exp, got)| {
+            let msg = format!(
+                "expected {} parameter{}, found {}",
+                exp,
+                if exp != 1 { "s" } else { "" },
+                got,
+            );
+            Error::new(msg, span)
+        })
     }
 
-    /// Consumes the next three parameters.
-    fn eat_params3(&mut self) -> Result<(Param<'i>, Param<'i>, Param<'i>)> {
-        let x = self.eat_param()?;
-        self.eat_token(Token::Comma)?;
-        let y = self.eat_param()?;
-        self.eat_token(Token::Comma)?;
-        let z = self.eat_param()?;
-        Ok((x, y, z))
-    }
-
-    /// Consumes multiple data params.
     fn eat_data_params(&mut self) -> Result<Vec<Data<'i>>> {
-        let mut data = Vec::new();
-        data.push(self.eat_raw_param()?.1);
-        loop {
-            match self.peek()? {
-                Some((_, Token::Comma)) => {
-                    self.advance();
-                    data.push(self.eat_raw_param()?.1)
-                }
-                _ => break Ok(data),
+        let mut params = Vec::new();
+        if self.peek_if(is_not_newline_or_eof)? {
+            params.push(self.eat_data_param()?.1);
+            while self.peek_if(is_another_param)? {
+                self.advance();
+                params.push(self.eat_data_param()?.1);
             }
         }
+        Ok(params)
     }
 
     /// Consumes the next instruction.
     fn eat_instr(&mut self) -> Result<Instr<'i>> {
-        let (span, _) = self.eat_token(Token::Mnemonic)?;
+        let (span, _) = self.expect(Token::Mnemonic)?;
         let opcode = span.as_str(self.input);
         let instr = match opcode {
             "ADD" => {
-                let (x, y, z) = self.eat_params3()?;
+                let (x, y, z) = self.eat_params(span)?;
                 Instr::Add(x, y, z)
             }
             "MUL" => {
-                let (x, y, z) = self.eat_params3()?;
+                let (x, y, z) = self.eat_params(span)?;
                 Instr::Multiply(x, y, z)
             }
             "JNZ" => {
-                let (x, y) = self.eat_params2()?;
+                let (x, y) = self.eat_params(span)?;
                 Instr::JumpNonZero(x, y)
             }
             "JZ" => {
-                let (x, y) = self.eat_params2()?;
+                let (x, y) = self.eat_params(span)?;
                 Instr::JumpZero(x, y)
             }
             "LT" => {
-                let (x, y, z) = self.eat_params3()?;
+                let (x, y, z) = self.eat_params(span)?;
                 Instr::LessThan(x, y, z)
             }
             "EQ" => {
-                let (x, y, z) = self.eat_params3()?;
+                let (x, y, z) = self.eat_params(span)?;
                 Instr::Equal(x, y, z)
             }
             "IN" => {
-                let p = self.eat_param()?;
+                let (p,) = self.eat_params(span)?;
                 Instr::Input(p)
             }
             "OUT" => {
-                let p = self.eat_param()?;
+                let (p,) = self.eat_params(span)?;
                 Instr::Output(p)
             }
             "ARB" => {
-                let p = self.eat_param()?;
+                let (p,) = self.eat_params(span)?;
                 Instr::AdjustRelativeBase(p)
+            }
+            "HLT" => {
+                self.eat_params(span)?;
+                Instr::Halt
             }
             "DB" => {
                 let data = self.eat_data_params()?;
                 Instr::Data(data)
             }
-            "HLT" => Instr::Halt,
             _ => return Err(Error::new("unknown operation mnemonic", span)),
         };
         Ok(instr)
@@ -306,7 +253,7 @@ impl<'i> Parser<'i> {
         let label = match self.peek()? {
             Some((span, Token::Ident)) => {
                 self.advance();
-                self.eat_token(Token::Colon)?;
+                self.expect(Token::Colon)?;
                 let label = span.as_str(self.input);
                 if label == "rb" {
                     return Err(Error::new("label is reserved for the relative base", span));
@@ -327,15 +274,14 @@ impl<'i> Parser<'i> {
         let mut stmts = Vec::new();
         loop {
             self.eat_all(Token::Newline)?;
-            stmts.push(self.eat_stmt()?);
-            // Either a newline or EOF is okay here, we don't want trailing
-            // newlines to be required.
-            match self.peek_interesting()? {
-                None => break,
-                Some(_) => {
-                    self.eat_token(Token::Newline)?;
-                }
+            if self.peek_if(is_eof)? {
+                break;
             }
+            stmts.push(self.eat_stmt()?);
+            if self.peek_if(is_eof)? {
+                break;
+            }
+            self.expect(Token::Newline)?;
         }
         Ok(Program { stmts })
     }
@@ -361,7 +307,7 @@ mod tests {
             ("\"😎\\t\"", "😎\t", 0..8, false),
         ];
         for (asm, string, range, is_borrowed) in tests {
-            let (span, data) = Parser::new(asm).eat_raw_param().unwrap();
+            let (span, data) = Parser::new(asm).eat_data_param().unwrap();
             assert_eq!(span, range.into());
             match data {
                 Data::String(value) => {
@@ -429,9 +375,11 @@ c: DB 50"#;
     #[test]
     fn eat_program_errors() {
         let tests = [
-            ("ADD", 3..4, "unexpected end of input"),
+            ("ADD x,", 6..6, "unexpected end of input"),
+            ("ADD", 0..3, "expected 3 parameters, found 0"),
             ("ADD @", 4..5, "unexpected character"),
-            ("ADD x y", 6..7, "expected a comma, found an identifier"),
+            ("ADD x, y", 0..3, "expected 3 parameters, found 2"),
+            ("ADD x, y, z, w", 0..3, "expected 3 parameters, found 4"),
             ("ADD #-a", 6..7, "expected a number, found an identifier"),
             ("ADD MUL", 4..7, "expected a parameter, found a mnemonic"),
             ("YUP", 0..3, "unknown operation mnemonic"),

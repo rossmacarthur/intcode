@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::path::Path;
 
 use dairy::Cow;
@@ -47,7 +48,7 @@ impl Error {
         let lines: Vec<_> = input.split_terminator('\n').collect();
 
         let (line, col) = to_line_col(&lines, span.m);
-        let width = span.as_str(input).width();
+        let width = max(1, span.as_str(input).width());
         let code = lines.get(line).unwrap_or_else(|| lines.last().unwrap());
         let error = format!(
             "{underline:>pad$} {msg}",
