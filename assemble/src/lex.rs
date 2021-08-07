@@ -32,6 +32,8 @@ pub enum Token {
     String,
     /// Comment contents including the `;` prefix.
     Comment,
+    /// Reached the end of input.
+    Eof,
 }
 
 /// An iterator over (index, char) in a string.
@@ -73,6 +75,7 @@ impl Token {
             Self::Number => "a number",
             Self::String => "a string",
             Self::Comment => "a comment",
+            Self::Eof => "end of input",
         }
     }
 }
@@ -172,9 +175,12 @@ impl<'i> Tokens<'i> {
     }
 
     /// Returns the next token in the iterator.
-    pub fn next(&mut self) -> Result<Option<(Span, Token)>> {
+    pub fn next(&mut self) -> Result<(Span, Token)> {
         let next = match self.iter.next() {
-            None => return Ok(None),
+            None => {
+                let i = self.iter.peek_index();
+                return Ok(span(Token::Eof, i..i));
+            }
             Some(next) => next,
         };
         let token = match next {
@@ -208,19 +214,19 @@ impl<'i> Tokens<'i> {
                 ))
             }
         };
-        Ok(Some(token))
+        Ok(token)
     }
 
     /// Finds the next token matching the predicate.
-    pub fn find<P>(&mut self, mut predicate: P) -> Result<Option<(Span, Token)>>
+    pub fn find<P>(&mut self, mut predicate: P) -> Result<(Span, Token)>
     where
         P: FnMut(&Token) -> bool,
     {
         loop {
             match self.next()? {
-                Some((span, token)) if predicate(&token) => break Ok(Some((span, token))),
-                None => break Ok(None),
-                Some(_) => continue,
+                (span, Token::Eof) => break Ok((span, Token::Eof)),
+                (span, tk) if predicate(&tk) => break Ok((span, tk)),
+                (_, _) => continue,
             }
         }
     }
@@ -236,7 +242,10 @@ mod tests {
         type Item = Result<(Span, Token)>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            self.next().transpose()
+            match self.next() {
+                Ok((_, Token::Eof)) => None,
+                ts => Some(ts),
+            }
         }
     }
 
