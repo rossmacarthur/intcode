@@ -1,3 +1,5 @@
+//! An error type for the lexer and parser.
+
 use std::cmp::max;
 use std::path::Path;
 
@@ -12,9 +14,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A parse error.
 ///
-/// This can be an unexpected character, token, or value. The span specifies
-/// what will be underlined in the error message. The message is what will be
-/// displayed in the formatted output.
+/// Depending on the context, This can be an unexpected character, token, or
+/// value. The span specifies what will be underlined in the error message. The
+/// message is what will be displayed in the formatted output.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{msg}")]
 pub struct Error {

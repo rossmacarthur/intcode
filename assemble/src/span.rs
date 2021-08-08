@@ -1,3 +1,5 @@
+//! Represents a span in the input.
+
 use std::fmt::Debug;
 use std::ops;
 

@@ -15,11 +15,8 @@ use crate::lex::{Token, Tokens};
 use crate::span::Span;
 
 struct Parser<'i> {
-    /// The original input string.
     input: &'i str,
-    /// An iterator over the tokens in the input.
     tokens: Tokens<'i>,
-    /// Labels that we have already seen.
     labels: HashSet<&'i str>,
 }
 
@@ -59,7 +56,6 @@ impl<'i> Parser<'i> {
         }
     }
 
-    /// Returns the next token, ignoring whitespace and comments.
     fn peek(&self) -> Result<(Span, Token)> {
         self.tokens.clone().find(Token::is_interesting)
     }
@@ -68,17 +64,14 @@ impl<'i> Parser<'i> {
         Ok(matches!(self.peek()?, (_, tk) if predicate(&tk)))
     }
 
-    /// Consumes the next token, skipping over whitespace and comments.
     fn eat(&mut self) -> Result<(Span, Token)> {
         self.tokens.find(Token::is_interesting)
     }
 
-    /// Advances the iterator by one token.
     fn advance(&mut self) {
         self.eat().unwrap();
     }
 
-    /// Consumes zero or more tokens matching the given one.
     fn eat_all(&mut self, want: Token) -> Result<()> {
         while self.is_next(|tk| *tk == want)? {
             self.advance();
@@ -86,7 +79,6 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
-    /// Consumes a token that must match the given one.
     fn expect(&mut self, want: Token) -> Result<(Span, Token)> {
         match self.peek()? {
             (span, tk) if tk == want => {
@@ -220,7 +212,6 @@ impl<'i> Parser<'i> {
             .collect()
     }
 
-    /// Consumes the next instruction.
     fn eat_instr(&mut self) -> Result<Instr<'i>> {
         let (span, _) = self.expect(Token::Mnemonic)?;
         let opcode = span.as_str(self.input);
@@ -274,7 +265,6 @@ impl<'i> Parser<'i> {
         Ok(instr)
     }
 
-    /// Consumes the next statement.
     fn eat_stmt(&mut self) -> Result<Option<Stmt<'i>>> {
         self.eat_all(Token::Newline)?;
         if self.is_next(Token::is_eof)? {
@@ -302,8 +292,7 @@ impl<'i> Parser<'i> {
         Ok(Some(Stmt { label, instr }))
     }
 
-    /// Consumes the next program.
-    fn eat_program(&mut self) -> result::Result<Program<'i>, Vec<Error>> {
+    fn eat_program(mut self) -> result::Result<Program<'i>, Vec<Error>> {
         let mut stmts = Vec::new();
         let mut errors = Vec::new();
         while let Some(stmt) = self.eat_stmt().transpose() {
@@ -311,7 +300,6 @@ impl<'i> Parser<'i> {
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     errors.push(err);
-                    // Go to the end of the line...
                     while !self.is_next(Token::is_newline_or_eof).unwrap_or(false) {
                         drop(self.eat());
                     }

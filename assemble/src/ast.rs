@@ -19,7 +19,7 @@ pub enum Param<'i> {
     Number(Mode, i64),
 }
 
-/// A parameter in a data instruction.
+/// A raw parameter in an instruction.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawParam<'i> {
     /// An identifier, optionally with an offset.
@@ -40,21 +40,21 @@ pub enum Instr<'i> {
     Add(Param<'i>, Param<'i>, Param<'i>),
     /// Multiplies two parameters together.
     Multiply(Param<'i>, Param<'i>, Param<'i>),
-    /// Compare two parameters.
+    /// Compares two parameters.
     LessThan(Param<'i>, Param<'i>, Param<'i>),
-    /// Check if two parameters are equal.
+    /// Checks if two parameters are equal.
     Equal(Param<'i>, Param<'i>, Param<'i>),
 
-    /// Move the instruction pointer if the result is non-zero.
+    /// Moves the instruction pointer if the result is non-zero.
     JumpNonZero(Param<'i>, Param<'i>),
-    /// Move the instruction pointer if the result is zero.
+    /// Moves the instruction pointer if the result is zero.
     JumpZero(Param<'i>, Param<'i>),
 
-    /// Fetch external data.
+    /// Fetches external data.
     Input(Param<'i>),
-    /// Output external data.
+    /// Outputs external data.
     Output(Param<'i>),
-    /// Adjust the relative base by the given amount.
+    /// Adjusts the relative base by the given amount.
     AdjustRelativeBase(Param<'i>),
 
     /// Halts the program.
@@ -90,7 +90,7 @@ impl From<Mode> for i64 {
 }
 
 impl Instr<'_> {
-    pub fn opcode(&self) -> i64 {
+    pub(crate) fn opcode(&self) -> i64 {
         match self {
             Self::Add(..) => 1,
             Self::Multiply(..) => 2,

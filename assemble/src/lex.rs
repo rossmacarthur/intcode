@@ -6,6 +6,7 @@ use std::str;
 use crate::error::{Error, Result};
 use crate::span::Span;
 
+/// The type of token yielded by the lexer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     /// `:`
@@ -46,9 +47,7 @@ pub struct CharIndices<'i> {
 /// An iterator over input tokens.
 #[derive(Debug, Clone)]
 pub struct Tokens<'i> {
-    /// The original input.
     input: &'i str,
-    /// The input as (index, char) values.
     iter: CharIndices<'i>,
 }
 
@@ -81,7 +80,6 @@ impl Token {
 }
 
 impl<'i> CharIndices<'i> {
-    /// Construct a new iterator over indexes and characters of a string.
     fn new(input: &'i str) -> Self {
         Self {
             iter: input.char_indices(),
@@ -89,7 +87,6 @@ impl<'i> CharIndices<'i> {
         }
     }
 
-    /// Returns the next index of the iterator.
     fn peek_index(&self) -> usize {
         self.iter
             .clone()
@@ -98,7 +95,6 @@ impl<'i> CharIndices<'i> {
             .unwrap_or_else(|| self.len)
     }
 
-    /// Returns the next character of the iterator.
     fn peek_char(&self) -> Option<char> {
         self.iter.clone().next().map(|(_, c)| c)
     }
@@ -127,13 +123,13 @@ fn is_numeric(c: &char) -> bool {
 }
 
 impl<'i> Tokens<'i> {
-    /// Construct a new iterator over the input tokens.
+    /// Constructs a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
         let iter = CharIndices::new(input);
         Self { input, iter }
     }
 
-    /// Eats the next character if the predicate is satisfied.
+    /// Lexes the next character if the predicate is satisfied.
     fn lex_if<P>(&mut self, predicate: P) -> bool
     where
         P: Fn(&char) -> bool,
@@ -144,7 +140,7 @@ impl<'i> Tokens<'i> {
         }
     }
 
-    /// Eats the next token, including all characters satisfying the predicate.
+    /// Lexes the next token, including all characters satisfying the predicate.
     fn lex_token<P>(&mut self, token: Token, i: usize, predicate: P) -> (Span, Token)
     where
         P: Fn(&char) -> bool + Copy,
@@ -153,7 +149,7 @@ impl<'i> Tokens<'i> {
         span(token, i..self.iter.peek_index())
     }
 
-    /// Eats the next string.
+    /// Lexes the next string.
     fn lex_string(&mut self, i: usize) -> Result<(Span, Token)> {
         let mut curr = '"';
         loop {
@@ -174,7 +170,7 @@ impl<'i> Tokens<'i> {
         }
     }
 
-    /// Returns the next token in the iterator.
+    /// Returns the next token in the lexer.
     pub fn next(&mut self) -> Result<(Span, Token)> {
         let next = match self.iter.next() {
             None => {
@@ -191,15 +187,15 @@ impl<'i> Tokens<'i> {
             (i, '+') => span(Token::Plus, i),
             (i, '-') => span(Token::Minus, i),
             (i, '\n') => span(Token::Newline, i),
-            (i, c) if c.is_ascii_whitespace() => {
-                self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace)
-            }
 
             // Multi-character tokens with a distinct starting character.
             (i, ';') => self.lex_token(Token::Comment, i, |&c| c != '\n'),
             (i, '"') => self.lex_string(i)?,
 
             // Multi-character tokens that use many different characters.
+            (i, c) if c.is_ascii_whitespace() => {
+                self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace)
+            }
             (i, c) if c.is_ascii_digit() => self.lex_token(Token::Number, i, is_numeric),
             (i, c) if c.is_ascii_uppercase() => {
                 self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase)
@@ -250,13 +246,13 @@ mod tests {
     }
 
     #[track_caller]
-    fn tokenize<'i>(input: &'i str) -> Vec<(Span, Token)> {
-        Tokens::new(input).collect::<Result<_>>().unwrap()
+    fn tokenize(input: &str) -> Result<Vec<(Span, Token)>> {
+        Tokens::new(input).collect()
     }
 
     #[test]
     fn basic() {
-        let tokens = tokenize("start:\nADD tmp, #19, rb+1 \t ; this is a comment\n");
+        let tokens = tokenize("start:\nADD tmp, #19, rb+1 \t ; this is a comment\n").unwrap();
         assert_eq!(
             tokens,
             [
@@ -288,7 +284,7 @@ mod tests {
             "0b10011", "0o23", "19", "0x13", "0b1_0011", "0o_2_3_", "1_9_", "0x_13_",
         ];
         for input in tests {
-            let tokens = tokenize(input);
+            let tokens = tokenize(input).unwrap();
             assert!(matches!(&*tokens, &[(_, Token::Number)]));
         }
     }
@@ -302,7 +298,7 @@ mod tests {
             ("\"😎\\t\"", 0..8),
         ];
         for (input, range) in tests {
-            let tokens = tokenize(input);
+            let tokens = tokenize(input).unwrap();
             assert_eq!(tokens, [span(Token::String, range)]);
         }
     }
@@ -310,7 +306,7 @@ mod tests {
     #[test]
     fn error() {
         assert_eq!(
-            Tokens::new("@").next().unwrap_err(),
+            tokenize("@").unwrap_err(),
             Error::new("unexpected character", 0..1)
         );
     }
