@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops;
 
 /// Represents a location in the original input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span {
     /// The start index.
     pub m: usize,

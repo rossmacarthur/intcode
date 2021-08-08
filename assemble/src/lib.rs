@@ -9,8 +9,7 @@ use std::iter;
 use either::Either;
 use indexmap::IndexMap;
 
-use crate::ast::{Data, Instr, Param, Program, Stmt};
-use crate::error::Result;
+use crate::ast::{Instr, Param, Program, RawParam, Stmt};
 
 pub use crate::error::Error;
 
@@ -20,7 +19,7 @@ struct State {
     refs: Vec<usize>,
 }
 
-fn assemble(ast: Program) -> Result<Vec<i64>> {
+fn assemble(ast: Program) -> Vec<i64> {
     let mut output = Vec::new();
     let mut idents = IndexMap::<_, State>::new();
 
@@ -73,12 +72,12 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
             Instr::Data(data) => {
                 let i = output.len();
                 output.extend(data.into_iter().flat_map(|d| match d {
-                    Data::Ident(ident, offset) => {
+                    RawParam::Ident(ident, offset) => {
                         idents.entry(ident).or_default().refs.push(i);
                         Either::Left(iter::once(offset))
                     }
-                    Data::Number(value) => Either::Left(iter::once(value)),
-                    Data::String(string) => {
+                    RawParam::Number(value) => Either::Left(iter::once(value)),
+                    RawParam::String(string) => {
                         Either::Right(string.into_owned().into_bytes().into_iter().map(i64::from))
                     }
                 }));
@@ -100,16 +99,18 @@ fn assemble(ast: Program) -> Result<Vec<i64>> {
         }
     }
 
-    Ok(output)
+    output
 }
 
 /// Assemble the program as intcode.
-pub fn program(input: &str) -> Result<String> {
-    Ok(assemble(parse::program(input)?)?
-        .into_iter()
-        .map(|d| d.to_string())
-        .collect::<Vec<_>>()
-        .join(","))
+pub fn program(input: &str) -> Result<String, Vec<Error>> {
+    parse::program(input).map(|prog| {
+        assemble(prog)
+            .into_iter()
+            .map(|d| d.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    })
 }
 
 #[cfg(test)]

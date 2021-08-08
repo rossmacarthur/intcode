@@ -34,10 +34,10 @@ pub fn parse(input: &str, span: Span, sign: Sign) -> Result<i64> {
                 )
             };
             let value = acc.checked_mul(radix.into()).ok_or_else(err)?;
-            Ok(match sign {
+            match sign {
                 Sign::Positive => value.checked_add(x.into()),
                 Sign::Negative => value.checked_sub(x.into()),
             }
-            .ok_or_else(err)?)
+            .ok_or_else(err)
         })
 }

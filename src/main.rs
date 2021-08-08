@@ -41,8 +41,10 @@ fn eprint(header: &str, message: impl Display) {
 fn assemble(input: &Path) -> Result<String> {
     let asm = fs::read_to_string(input)?;
     eprint("Assembling", input.display());
-    assemble::program(&asm).map_err(|err| {
-        eprintln!("{}", err.pretty(&asm, input));
+    assemble::program(&asm).map_err(|errors| {
+        for error in errors {
+            eprintln!("{}", error.pretty(&asm, input));
+        }
         eprintln!(
             "{}{} could not assemble `{}`",
             "error".bold().red(),

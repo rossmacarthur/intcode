@@ -5,10 +5,11 @@ mod string;
 mod unpack;
 
 use std::collections::HashSet;
+use std::result;
 
 use self::integer::Sign;
 use self::unpack::TryUnpack;
-use crate::ast::{Data, Instr, Mode, Param, Program, Stmt};
+use crate::ast::{Instr, Mode, Param, Program, RawParam, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Token, Tokens};
 use crate::span::Span;
@@ -31,8 +32,12 @@ impl Token {
         matches!(self, Token::Eof)
     }
 
+    fn is_newline_or_eof(&self) -> bool {
+        matches!(self, Token::Newline | Token::Eof)
+    }
+
     fn is_not_newline_or_eof(&self) -> bool {
-        !matches!(self, Token::Newline | Token::Eof)
+        !self.is_newline_or_eof()
     }
 
     fn is_delimiter(&self) -> bool {
@@ -59,11 +64,8 @@ impl<'i> Parser<'i> {
         self.tokens.clone().find(Token::is_interesting)
     }
 
-    fn is_next<P>(&self, predicate: P) -> Result<bool>
-    where
-        P: FnOnce(&Token) -> bool,
-    {
-        Ok(predicate(&self.peek()?.1))
+    fn is_next<P: FnOnce(&Token) -> bool>(&self, predicate: P) -> Result<bool> {
+        Ok(matches!(self.peek()?, (_, tk) if predicate(&tk)))
     }
 
     /// Consumes the next token, skipping over whitespace and comments.
@@ -78,7 +80,7 @@ impl<'i> Parser<'i> {
 
     /// Consumes zero or more tokens matching the given one.
     fn eat_all(&mut self, want: Token) -> Result<()> {
-        while matches!(self.peek()?, (_, tk) if tk == want) {
+        while self.is_next(|tk| *tk == want)? {
             self.advance();
         }
         Ok(())
@@ -86,8 +88,11 @@ impl<'i> Parser<'i> {
 
     /// Consumes a token that must match the given one.
     fn expect(&mut self, want: Token) -> Result<(Span, Token)> {
-        match self.eat()? {
-            (span, tk) if tk == want => Ok((span, tk)),
+        match self.peek()? {
+            (span, tk) if tk == want => {
+                self.advance();
+                Ok((span, tk))
+            }
             (span, tk) => Err(Error::new(
                 format!("expected {}, found {}", want.human(), tk.human()),
                 span,
@@ -95,20 +100,20 @@ impl<'i> Parser<'i> {
         }
     }
 
-    fn eat_data_param(&mut self) -> Result<(Span, Data<'i>)> {
+    fn _eat_raw_param(&mut self) -> Result<(Span, RawParam<'i>)> {
         match self.eat()? {
             (span, Token::String) => {
                 let value = string::parse(self.input, span)?;
-                Ok((span, Data::String(value)))
+                Ok((span, RawParam::String(value)))
             }
             (span, Token::Minus) => {
                 let (s, _) = self.expect(Token::Number)?;
                 let value = integer::parse(self.input, s, Sign::Negative)?;
-                Ok((span.include(s), Data::Number(value)))
+                Ok((span.include(s), RawParam::Number(value)))
             }
             (span, Token::Number) => {
                 let value = integer::parse(self.input, span, Sign::Positive)?;
-                Ok((span, Data::Number(value)))
+                Ok((span, RawParam::Number(value)))
             }
             (span, Token::Ident) => {
                 let ident = span.as_str(self.input);
@@ -117,15 +122,15 @@ impl<'i> Parser<'i> {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Negative)?;
-                        Ok((span.include(s), Data::Ident(ident, offset)))
+                        Ok((span.include(s), RawParam::Ident(ident, offset)))
                     }
                     (_, Token::Plus) => {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Positive)?;
-                        Ok((span.include(s), Data::Ident(ident, offset)))
+                        Ok((span.include(s), RawParam::Ident(ident, offset)))
                     }
-                    _ => Ok((span, Data::Ident(ident, 0))),
+                    _ => Ok((span, RawParam::Ident(ident, 0))),
                 }
             }
             (span, tk) => Err(Error::new(
@@ -135,39 +140,58 @@ impl<'i> Parser<'i> {
         }
     }
 
-    fn eat_param(&mut self) -> Result<Param<'i>> {
-        let with_mode = |span, data, mode| {
-            let param = match data {
-                Data::Ident("rb", offset) => Param::Number(Mode::Relative, offset),
-                Data::Ident(ident, offset) => Param::Ident(mode, ident, offset),
-                Data::Number(value) => Param::Number(mode, value),
-                _ => return Err(Error::new("string parameter not allowed here", span)),
-            };
-            Ok(param)
-        };
+    fn eat_raw_param(&mut self) -> Result<(bool, Span, RawParam<'i>)> {
         if self.is_next(Token::is_hash)? {
-            self.advance();
-            let (span, data) = self.eat_data_param()?;
-            with_mode(span, data, Mode::Immediate)
+            let (span, _) = self.expect(Token::Hash)?;
+            let (s, raw) = self._eat_raw_param()?;
+            Ok((true, span.include(s), raw))
         } else {
-            let (span, data) = self.eat_data_param()?;
-            with_mode(span, data, Mode::Positional)
+            let (span, raw) = self._eat_raw_param()?;
+            Ok((false, span, raw))
         }
+    }
+
+    fn eat_raw_params(&mut self) -> Result<Vec<(bool, Span, RawParam<'i>)>> {
+        let mut params = Vec::new();
+        if self.is_next(Token::is_not_newline_or_eof)? {
+            params.push(self.eat_raw_param()?);
+            while self.is_next(Token::is_delimiter)? {
+                self.expect(Token::Comma)?;
+                params.push(self.eat_raw_param()?);
+            }
+        }
+        Ok(params)
     }
 
     fn eat_params<T>(&mut self, span: Span) -> Result<T>
     where
-        Vec<Param<'i>>: TryUnpack<T>,
+        T: TryUnpack<Param<'i>>,
     {
-        let mut params = Vec::new();
-        if self.is_next(Token::is_not_newline_or_eof)? {
-            params.push(self.eat_param()?);
-            while self.is_next(Token::is_delimiter)? {
-                self.expect(Token::Comma)?;
-                params.push(self.eat_param()?);
-            }
-        }
-        params.try_unpack().map_err(|(exp, got)| {
+        let params: Vec<_> = self
+            .eat_raw_params()?
+            .into_iter()
+            .map(|(prefix, span, raw)| {
+                let mode = || match prefix {
+                    true => Mode::Immediate,
+                    false => Mode::Positional,
+                };
+                match (prefix, raw) {
+                    (_, RawParam::String(_)) => {
+                        Err(Error::new("string parameter only allowed with `DB`", span))
+                    }
+                    (true, RawParam::Ident("rb", _)) => Err(Error::new(
+                        "both immediate and relative mode specified",
+                        span,
+                    )),
+                    (false, RawParam::Ident("rb", offset)) => {
+                        Ok(Param::Number(Mode::Relative, offset))
+                    }
+                    (_, RawParam::Ident(ident, offset)) => Ok(Param::Ident(mode(), ident, offset)),
+                    (_, RawParam::Number(value)) => Ok(Param::Number(mode(), value)),
+                }
+            })
+            .collect::<Result<_>>()?;
+        T::try_unpack(params).map_err(|(exp, got)| {
             let msg = format!(
                 "expected {} parameter{}, found {}",
                 exp,
@@ -178,16 +202,22 @@ impl<'i> Parser<'i> {
         })
     }
 
-    fn eat_data_params(&mut self) -> Result<Vec<Data<'i>>> {
-        let mut params = Vec::new();
-        if self.is_next(Token::is_not_newline_or_eof)? {
-            params.push(self.eat_data_param()?.1);
-            while self.is_next(Token::is_delimiter)? {
-                self.advance();
-                params.push(self.eat_data_param()?.1);
-            }
-        }
-        Ok(params)
+    fn eat_data_params(&mut self) -> Result<Vec<RawParam<'i>>> {
+        self.eat_raw_params()?
+            .into_iter()
+            .map(|(prefix, span, raw)| {
+                if prefix {
+                    return Err(Error::new("immediate mode not allowed with `DB`", span.m));
+                }
+                if matches!(raw, RawParam::Ident("rb", _)) {
+                    return Err(Error::new(
+                        "relative mode not allowed with `DB`",
+                        span.m..span.m + 2,
+                    ));
+                }
+                Ok(raw)
+            })
+            .collect()
     }
 
     /// Consumes the next instruction.
@@ -245,7 +275,11 @@ impl<'i> Parser<'i> {
     }
 
     /// Consumes the next statement.
-    fn eat_stmt(&mut self) -> Result<Stmt<'i>> {
+    fn eat_stmt(&mut self) -> Result<Option<Stmt<'i>>> {
+        self.eat_all(Token::Newline)?;
+        if self.is_next(Token::is_eof)? {
+            return Ok(None);
+        }
         let label = match self.peek()? {
             (span, Token::Ident) => {
                 self.advance();
@@ -262,29 +296,37 @@ impl<'i> Parser<'i> {
         };
         self.eat_all(Token::Newline)?;
         let instr = self.eat_instr()?;
-        Ok(Stmt { label, instr })
+        if !self.is_next(Token::is_eof)? {
+            self.expect(Token::Newline)?;
+        }
+        Ok(Some(Stmt { label, instr }))
     }
 
     /// Consumes the next program.
-    fn eat_program(&mut self) -> Result<Program<'i>> {
+    fn eat_program(&mut self) -> result::Result<Program<'i>, Vec<Error>> {
         let mut stmts = Vec::new();
-        loop {
-            self.eat_all(Token::Newline)?;
-            if self.is_next(Token::is_eof)? {
-                break;
+        let mut errors = Vec::new();
+        while let Some(stmt) = self.eat_stmt().transpose() {
+            match stmt {
+                Ok(stmt) => stmts.push(stmt),
+                Err(err) => {
+                    errors.push(err);
+                    // Go to the end of the line...
+                    while !self.is_next(Token::is_newline_or_eof).unwrap_or(false) {
+                        drop(self.eat());
+                    }
+                }
             }
-            stmts.push(self.eat_stmt()?);
-            if self.is_next(Token::is_eof)? {
-                break;
-            }
-            self.expect(Token::Newline)?;
         }
-        Ok(Program { stmts })
+        match errors.is_empty() {
+            true => Ok(Program { stmts }),
+            false => Err(errors),
+        }
     }
 }
 
 /// Parse intcode assembly.
-pub fn program(input: &str) -> Result<Program> {
+pub fn program(input: &str) -> result::Result<Program, Vec<Error>> {
     Parser::new(input).eat_program()
 }
 
@@ -303,10 +345,10 @@ mod tests {
             ("\"😎\\t\"", "😎\t", 0..8, false),
         ];
         for (asm, string, range, is_borrowed) in tests {
-            let (span, data) = Parser::new(asm).eat_data_param().unwrap();
+            let (_, span, raw) = Parser::new(asm).eat_raw_param().unwrap();
             assert_eq!(span, range.into());
-            match data {
-                Data::String(value) => {
+            match raw {
+                RawParam::String(value) => {
                     assert_eq!(value, string);
                     assert_eq!(value.is_borrowed(), is_borrowed);
                 }
@@ -353,15 +395,15 @@ c: DB 50"#;
                     },
                     Stmt {
                         label: Some("a"),
-                        instr: Instr::Data(vec![Data::Number(30)]),
+                        instr: Instr::Data(vec![RawParam::Number(30)]),
                     },
                     Stmt {
                         label: Some("b"),
-                        instr: Instr::Data(vec![Data::Number(40)]),
+                        instr: Instr::Data(vec![RawParam::Number(40)]),
                     },
                     Stmt {
                         label: Some("c"),
-                        instr: Instr::Data(vec![Data::Number(50)]),
+                        instr: Instr::Data(vec![RawParam::Number(50)]),
                     },
                 ]
             }
@@ -383,7 +425,7 @@ c: DB 50"#;
             ("label: DB 0\nlabel: DB 0", 12..17, "label already used"),
         ];
         for (asm, span, msg) in tests {
-            assert_eq!(program(asm).unwrap_err(), Error::new(msg, span));
+            assert_eq!(program(asm).unwrap_err(), [Error::new(msg, span)]);
         }
     }
 }

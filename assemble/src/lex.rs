@@ -130,7 +130,7 @@ impl<'i> Tokens<'i> {
     /// Construct a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
         let iter = CharIndices::new(input);
-        Self { iter, input }
+        Self { input, iter }
     }
 
     /// Eats the next character if the predicate is satisfied.

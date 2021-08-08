@@ -7,7 +7,7 @@ use dairy::String;
 use crate::error::{Error, Result};
 use crate::span::Span;
 
-pub fn parse<'i>(input: &'i str, span: Span) -> Result<String<'i>> {
+pub fn parse(input: &str, span: Span) -> Result<String> {
     let raw = span.as_str(input);
     if raw.contains('\\') {
         let mut iter = raw.char_indices().map(|(i, c)| (span.m + i, c));

@@ -21,7 +21,7 @@ pub enum Param<'i> {
 
 /// A parameter in a data instruction.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Data<'i> {
+pub enum RawParam<'i> {
     /// An identifier, optionally with an offset.
     Ident(&'i str, i64),
     /// An exact number.
@@ -61,7 +61,7 @@ pub enum Instr<'i> {
     Halt,
 
     /// (Pseudo) Places raw data in the program.
-    Data(Vec<Data<'i>>),
+    Data(Vec<RawParam<'i>>),
 }
 
 /// A single line in a program.
