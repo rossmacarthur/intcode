@@ -74,6 +74,66 @@ fn parse_unexpected_token() {
 }
 
 #[test]
+fn parse_invalid_base_2_integer() {
+    let asm = "DB 0b021";
+    let expected = "
+  --> <input>:1:7
+   |
+ 1 | DB 0b021
+   |       ^ invalid digit for base 2 literal
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_invalid_base_10_integer() {
+    let asm = "DB 0a21";
+    let expected = "
+  --> <input>:1:5
+   |
+ 1 | DB 0a21
+   |     ^ invalid digit for base 10 literal
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_invalid_base_16_integer() {
+    let asm = "DB 0x2Ga1";
+    let expected = "
+  --> <input>:1:7
+   |
+ 1 | DB 0x2Ga1
+   |       ^ invalid digit for base 16 literal
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_invalid_integer_overflow() {
+    let asm = "DB 0xFFFFFFFFFFFFFFFF";
+    let expected = "
+  --> <input>:1:4
+   |
+ 1 | DB 0xFFFFFFFFFFFFFFFF
+   |    ^^^^^^^^^^^^^^^^^^ base 16 literal out of range for 64-bit integer
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_invalid_string_escape() {
+    let asm = r#"ADD "te\st""#;
+    let expected = r#"
+  --> <input>:1:9
+   |
+ 1 | ADD "te\st"
+   |         ^ unknown escape character
+"#;
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
 fn parse_expected_parameter() {
     let asm = "ADD +";
     let expected = "
