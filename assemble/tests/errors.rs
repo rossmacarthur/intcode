@@ -1,11 +1,11 @@
-use intcode_assemble::program;
+use intcode_assemble::to_ast;
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
     yansi::Paint::disable();
-    program(asm)
+    to_ast(asm)
         .unwrap_err()
         .into_iter()
         .map(|e| e.pretty(asm, "<input>"))

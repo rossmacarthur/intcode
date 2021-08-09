@@ -27,7 +27,7 @@ fn assemble(ast: Program) -> Vec<i64> {
         if let Some(label) = label {
             let v = labels.entry(label).or_default();
             match v.label {
-                Some(_) => panic!("label `{}` used multiple times", label),
+                Some(_) => unreachable!(),
                 None => v.label = Some(output.len()),
             }
         }
@@ -102,8 +102,13 @@ fn assemble(ast: Program) -> Vec<i64> {
     output
 }
 
+/// Assemble the program as a valid AST.
+pub fn to_ast(input: &str) -> Result<Program, Vec<Error>> {
+    parse::program(input)
+}
+
 /// Assemble the program as intcode.
-pub fn program(input: &str) -> Result<String, Vec<Error>> {
+pub fn to_intcode(input: &str) -> Result<String, Vec<Error>> {
     parse::program(input).map(|prog| {
         assemble(prog)
             .into_iter()
