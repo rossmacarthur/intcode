@@ -21,11 +21,11 @@ struct State {
 
 fn assemble(ast: Program) -> Vec<i64> {
     let mut output = Vec::new();
-    let mut idents = IndexMap::<_, State>::new();
+    let mut labels = IndexMap::<_, State>::new();
 
     for Stmt { label, instr } in ast.stmts {
         if let Some(label) = label {
-            let v = idents.entry(label).or_default();
+            let v = labels.entry(label).or_default();
             match v.label {
                 Some(_) => panic!("label `{}` used multiple times", label),
                 None => v.label = Some(output.len()),
@@ -35,8 +35,8 @@ fn assemble(ast: Program) -> Vec<i64> {
         let mut param = |output: &mut Vec<_>, p| -> i64 {
             let (mode, value) = match p {
                 Param::Number(m, value) => (m.into(), value),
-                Param::Ident(m, ident, offset) => {
-                    idents.entry(ident).or_default().refs.push(output.len());
+                Param::Label(m, label, offset) => {
+                    labels.entry(label).or_default().refs.push(output.len());
                     (m.into(), offset)
                 }
             };
@@ -72,8 +72,8 @@ fn assemble(ast: Program) -> Vec<i64> {
             Instr::Data(data) => {
                 let i = output.len();
                 output.extend(data.into_iter().flat_map(|d| match d {
-                    RawParam::Ident(ident, offset) => {
-                        idents.entry(ident).or_default().refs.push(i);
+                    RawParam::Label(label, offset) => {
+                        labels.entry(label).or_default().refs.push(i);
                         Either::Left(iter::once(offset))
                     }
                     RawParam::Number(value) => Either::Left(iter::once(value)),
@@ -86,7 +86,7 @@ fn assemble(ast: Program) -> Vec<i64> {
         }
     }
 
-    for (_, State { label, refs }) in idents {
+    for (_, State { label, refs }) in labels {
         let ptr = match label {
             Some(ptr) => ptr,
             None => {

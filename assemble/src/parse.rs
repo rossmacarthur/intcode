@@ -22,17 +22,39 @@ struct Parser<'i> {
     labels: HashSet<&'i str>,
 }
 
+enum Ident {
+    Mnemonic,
+    Label,
+}
+
+impl Ident {
+    fn new(s: &str) -> Self {
+        match s.chars().all(|c| matches!(c, '0'..='9'| 'A'..='Z' | '_')) {
+            false => Self::Label,
+            true => Self::Mnemonic,
+        }
+    }
+
+    fn is_label(&self) -> bool {
+        matches!(self, Self::Label)
+    }
+
+    fn is_mnemonic(&self) -> bool {
+        matches!(self, Self::Mnemonic)
+    }
+}
+
 impl Token {
     fn is_hash(&self) -> bool {
-        matches!(self, Token::Hash)
+        matches!(self, Self::Hash)
     }
 
     fn is_eof(&self) -> bool {
-        matches!(self, Token::Eof)
+        matches!(self, Self::Eof)
     }
 
     fn is_newline_or_eof(&self) -> bool {
-        matches!(self, Token::Newline | Token::Eof)
+        matches!(self, Self::Newline | Self::Eof)
     }
 
     fn is_not_newline_or_eof(&self) -> bool {
@@ -40,11 +62,11 @@ impl Token {
     }
 
     fn is_delimiter(&self) -> bool {
-        matches!(self, Token::Comma) || self.is_not_newline_or_eof()
+        matches!(self, Self::Comma) || self.is_not_newline_or_eof()
     }
 
     fn is_interesting(&self) -> bool {
-        !matches!(self, Token::Whitespace | Token::Comment)
+        !matches!(self, Self::Whitespace | Self::Comment)
     }
 }
 
@@ -110,21 +132,24 @@ impl<'i> Parser<'i> {
                 Ok((span, RawParam::Number(value)))
             }
             (span, Token::Ident) => {
-                let ident = span.as_str(self.input);
+                let value = span.as_str(self.input);
+                if Ident::new(value).is_mnemonic() {
+                    return Err(Error::new("expected a parameter, found a mnemonic", span));
+                }
                 match self.peek()? {
                     (_, Token::Minus) => {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Negative)?;
-                        Ok((span.include(s), RawParam::Ident(ident, offset)))
+                        Ok((span.include(s), RawParam::Label(value, offset)))
                     }
                     (_, Token::Plus) => {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Positive)?;
-                        Ok((span.include(s), RawParam::Ident(ident, offset)))
+                        Ok((span.include(s), RawParam::Label(value, offset)))
                     }
-                    _ => Ok((span, RawParam::Ident(ident, 0))),
+                    _ => Ok((span, RawParam::Label(value, 0))),
                 }
             }
             (span, tk) => Err(Error::new(
@@ -170,14 +195,14 @@ impl<'i> Parser<'i> {
                     (_, RawParam::String(_)) => {
                         Err(Error::new("string parameter only allowed with `DB`", span))
                     }
-                    (true, RawParam::Ident("rb", _)) => Err(Error::new(
+                    (true, RawParam::Label("rb", _)) => Err(Error::new(
                         "both immediate and relative mode specified",
                         span,
                     )),
-                    (false, RawParam::Ident("rb", offset)) => {
+                    (false, RawParam::Label("rb", offset)) => {
                         Ok(Param::Number(Mode::Relative, offset))
                     }
-                    (_, RawParam::Ident(ident, offset)) => Ok(Param::Ident(mode(), ident, offset)),
+                    (_, RawParam::Label(value, offset)) => Ok(Param::Label(mode(), value, offset)),
                     (_, RawParam::Number(value)) => Ok(Param::Number(mode(), value)),
                 }
             })
@@ -200,7 +225,7 @@ impl<'i> Parser<'i> {
                 if prefix {
                     return Err(Error::new("immediate mode not allowed with `DB`", span.m));
                 }
-                if matches!(raw, RawParam::Ident("rb", _)) {
+                if matches!(raw, RawParam::Label("rb", _)) {
                     return Err(Error::new(
                         "relative mode not allowed with `DB`",
                         span.m..span.m + 2,
@@ -212,7 +237,7 @@ impl<'i> Parser<'i> {
     }
 
     fn eat_instr(&mut self) -> Result<Instr<'i>> {
-        let (span, _) = self.expect(Token::Mnemonic)?;
+        let (span, _) = self.expect(Token::Ident)?;
         let opcode = span.as_str(self.input);
         let instr = match opcode {
             "ADD" => {
@@ -259,7 +284,13 @@ impl<'i> Parser<'i> {
                 let data = self.eat_data_params()?;
                 Instr::Data(data)
             }
-            _ => return Err(Error::new("unknown operation mnemonic", span)),
+            s => {
+                let msg = match Ident::new(s) {
+                    Ident::Mnemonic => "unknown operation mnemonic",
+                    Ident::Label => "expected a mnemonic, found an identifier",
+                };
+                return Err(Error::new(msg, span));
+            }
         };
         Ok(instr)
     }
@@ -270,7 +301,7 @@ impl<'i> Parser<'i> {
             return Ok(None);
         }
         let label = match self.peek()? {
-            (span, Token::Ident) => {
+            (span, Token::Ident) if Ident::new(span.as_str(self.input)).is_label() => {
                 self.advance();
                 self.expect(Token::Colon)?;
                 let label = span.as_str(self.input);

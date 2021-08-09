@@ -26,10 +26,8 @@ pub enum Token {
     Newline,
     /// A sequence of tab (0x09) and/or spaces (0x20).
     Whitespace,
-    /// A variable or label identifier, like `the_end` or `rb`.
+    /// A mnemonic, variable or label identifier, like `HLT`, `the_end` or `rb`.
     Ident,
-    /// An instruction mnemonic, like `EQ` or `HLT`.
-    Mnemonic,
     /// A decimal number like `19`, `0b1011, or `0o777`, or `0x7f`.
     Number,
     /// A string like `"Hello World!\n"`.
@@ -73,7 +71,6 @@ impl Token {
             Self::Newline => "a newline",
             Self::Whitespace => "whitespace",
             Self::Ident => "an identifier",
-            Self::Mnemonic => "a mnemonic",
             Self::Number => "a number",
             Self::String => "a string",
             Self::Comment => "a comment",
@@ -117,11 +114,11 @@ impl<'i> ops::DerefMut for CharIndices<'i> {
     }
 }
 
-fn is_identifier(c: &char) -> bool {
-    matches!(c, 'a'..='z' | '_')
+fn is_identifier_start(c: &char) -> bool {
+    matches!(c, 'a'..='z' | 'A'..='Z' | '_')
 }
 
-fn is_numeric(c: &char) -> bool {
+fn is_identifier(c: &char) -> bool {
     matches!(*c, '0'..='9' | 'A'..='Z' | 'a'..='z' | '_')
 }
 
@@ -199,11 +196,8 @@ impl<'i> Tokens<'i> {
             (i, c) if c.is_ascii_whitespace() => {
                 self.lex_token(Token::Whitespace, i, char::is_ascii_whitespace)
             }
-            (i, c) if c.is_ascii_digit() => self.lex_token(Token::Number, i, is_numeric),
-            (i, c) if c.is_ascii_uppercase() => {
-                self.lex_token(Token::Mnemonic, i, char::is_ascii_uppercase)
-            }
-            (i, c) if is_identifier(&c) => self.lex_token(Token::Ident, i, is_identifier),
+            (i, c) if c.is_ascii_digit() => self.lex_token(Token::Number, i, is_identifier),
+            (i, c) if is_identifier_start(&c) => self.lex_token(Token::Ident, i, is_identifier),
 
             // Any other character is considered invalid.
             (i, _) => {

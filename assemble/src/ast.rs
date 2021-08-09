@@ -13,8 +13,8 @@ pub enum Mode {
 /// A parameter in an instruction.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Param<'i> {
-    /// An identifier, optionally with an offset.
-    Ident(Mode, &'i str, i64),
+    /// A label, optionally with an offset.
+    Label(Mode, &'i str, i64),
     /// An exact number.
     Number(Mode, i64),
 }
@@ -22,8 +22,8 @@ pub enum Param<'i> {
 /// A raw parameter in an instruction.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawParam<'i> {
-    /// An identifier, optionally with an offset.
-    Ident(&'i str, i64),
+    /// A label, optionally with an offset.
+    Label(&'i str, i64),
     /// An exact number.
     Number(i64),
     /// A string literal.

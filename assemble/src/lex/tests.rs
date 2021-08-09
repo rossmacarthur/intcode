@@ -27,7 +27,7 @@ fn basic() {
             span(Token::Ident, 0..5),
             span(Token::Colon, 5..6),
             span(Token::Newline, 6..7),
-            span(Token::Mnemonic, 7..10),
+            span(Token::Ident, 7..10),
             span(Token::Whitespace, 10..11),
             span(Token::Ident, 11..14),
             span(Token::Comma, 14..15),
