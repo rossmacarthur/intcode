@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::path::PathBuf;
 use std::process;
@@ -27,6 +28,9 @@ enum Opt {
     Run {
         #[clap()]
         input: PathBuf,
+
+        #[clap(long)]
+        utf8: bool,
     },
 }
 
@@ -63,16 +67,32 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn run(input: PathBuf) -> Result<()> {
-    let intcode = assemble(&input)?;
+fn run(input: PathBuf, utf8: bool) -> Result<()> {
+    let intcode = match input.extension().and_then(OsStr::to_str) {
+        Some("s") => assemble(&input)?,
+        Some("intcode") | None => fs::read_to_string(&input)?,
+        Some(ext) => {
+            eprintln!(
+                "{}{} unrecognized file extension `{}`",
+                "error".bold().red(),
+                ":".bold(),
+                ext
+            );
+            process::exit(1);
+        }
+    };
     eprint("Running", input.display());
-    run::program(&intcode)?;
+    if utf8 {
+        run::intcode_utf8(&intcode)?;
+    } else {
+        run::intcode(&intcode)?;
+    }
     Ok(())
 }
 
 fn main() -> Result<()> {
     match Opt::parse() {
         Opt::Build { input, output } => build(input, output),
-        Opt::Run { input } => run(input),
+        Opt::Run { input, utf8 } => run(input, utf8),
     }
 }

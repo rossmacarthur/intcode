@@ -1,9 +1,10 @@
+mod io;
+
 use std::cmp::max;
 use std::collections::VecDeque;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::fmt::Debug;
-use std::io::{self, BufReader};
-use std::io::{prelude::*, BufWriter};
+use std::io::prelude::*;
 
 fn cast(num: i64) -> usize {
     usize::try_from(num).unwrap()
@@ -132,21 +133,18 @@ impl Computer {
     }
 }
 
-/// Run the provided intcode program.
-pub fn program(input: &str) -> io::Result<()> {
+fn run(input: &str, io: impl io::Io) -> io::Result<()> {
     let mut c = Computer::new(parse_program(input));
-    let mut stdout = BufWriter::new(io::stdout());
+    let mut stdout = io::BufWriter::new(io::stdout());
     loop {
         match c.next() {
             State::Yielded(value) => {
-                stdout.write(&[value.try_into().expect("invalid UTF-8")])?;
+                io.output(&mut stdout, value)?;
+                stdout.flush()?;
             }
             State::Waiting => {
                 stdout.flush()?;
-                let stdin = BufReader::new(io::stdin());
-                for line in stdin.lines() {
-                    c.input.extend(Vec::from(line?).into_iter().map(i64::from));
-                }
+                c.input.extend(io.input(io::BufReader::new(io::stdin()))?);
             }
             State::Complete => {
                 stdout.flush()?;
@@ -154,4 +152,14 @@ pub fn program(input: &str) -> io::Result<()> {
             }
         }
     }
+}
+
+/// Run the provided intcode program.
+pub fn intcode(input: &str) -> io::Result<()> {
+    run(input, io::Basic)
+}
+
+/// Run the provided intcode program.
+pub fn intcode_utf8(input: &str) -> io::Result<()> {
+    run(input, io::Utf8)
 }
