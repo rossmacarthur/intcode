@@ -4,9 +4,9 @@ use std::cmp::max;
 use std::path::Path;
 
 use dairy::Cow;
-use peter::Stylize;
 use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
+use yansi::Paint;
 
 use crate::span::Span;
 
@@ -44,7 +44,7 @@ impl Error {
         }
     }
 
-    pub fn pretty(&self, input: &str, filename: &Path) -> String {
+    pub fn pretty(&self, input: &str, filename: impl AsRef<Path>) -> String {
         let Self { span, msg } = self;
 
         let lines: Vec<_> = input.split_terminator('\n').collect();
@@ -54,8 +54,8 @@ impl Error {
         let code = lines.get(line).unwrap_or_else(|| lines.last().unwrap());
         let error = format!(
             "{underline:>pad$} {msg}",
-            underline = "^".repeat(width).bold().red(),
-            msg = msg.bold(),
+            underline = Paint::red("^".repeat(width)).bold(),
+            msg = Paint::default(msg).bold(),
             pad = col + width,
         );
 
@@ -68,12 +68,12 @@ impl Error {
              {0:pad$} {pipe} {error}\n",
             "",
             pad = num.width(),
-            arrow = "-->".bold().blue(),
-            filename = filename.display(),
+            arrow = Paint::blue("-->").bold(),
+            filename = filename.as_ref().display(),
             line = line + 1,
             col = col + 1,
-            pipe = "|".bold().blue(),
-            num = num.bold().blue(),
+            pipe = Paint::blue("|").bold(),
+            num = Paint::blue(num).bold(),
             code = code,
             error = error,
         )
