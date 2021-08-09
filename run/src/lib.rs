@@ -5,6 +5,11 @@ use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::io::prelude::*;
+use std::result;
+
+use thiserror::Error;
+
+type Result<T> = result::Result<T, Error>;
 
 fn cast(num: i64) -> usize {
     usize::try_from(num).unwrap()
@@ -15,8 +20,18 @@ fn parse_program(input: &str) -> Vec<i64> {
         .trim()
         .split(',')
         .map(str::parse)
-        .map(Result::unwrap)
+        .map(result::Result::unwrap)
         .collect()
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("unknown mode `{}`", .mode)]
+    UnknownMode { mode: i64 },
+    #[error("unknown opcode `{}`", .opcode)]
+    UnknownOpcode { opcode: i64 },
+    #[error(transparent)]
+    Io(#[from] io::Error),
 }
 
 /// The state of the computer.
@@ -57,87 +72,87 @@ impl Computer {
         &mut self.mem[addr]
     }
 
-    fn param_ptr(&self, i: usize) -> usize {
+    fn param_ptr(&self, i: usize) -> Result<usize> {
         let opcode = self.mem_get(self.ptr);
         let ptr = self.ptr + i;
         match opcode / (10i64.pow((1 + i) as u32)) % 10 {
-            0 => cast(self.mem_get(ptr)),
-            1 => ptr,
-            2 => cast(self.relative_base + self.mem_get(ptr)),
-            mode => panic!("unknown mode `{}`", mode),
+            0 => Ok(cast(self.mem_get(ptr))),
+            1 => Ok(ptr),
+            2 => Ok(cast(self.relative_base + self.mem_get(ptr))),
+            mode => Err(Error::UnknownMode { mode }),
         }
     }
 
-    fn param(&self, i: usize) -> i64 {
-        self.mem_get(self.param_ptr(i))
+    fn param(&self, i: usize) -> Result<i64> {
+        self.param_ptr(i).map(move |ptr| self.mem_get(ptr))
     }
 
-    fn param_mut(&mut self, i: usize) -> &mut i64 {
-        self.mem_get_mut(self.param_ptr(i))
+    fn param_mut(&mut self, i: usize) -> Result<&mut i64> {
+        self.param_ptr(i).map(move |ptr| self.mem_get_mut(ptr))
     }
 
-    fn next(&mut self) -> State {
+    fn next(&mut self) -> Result<State> {
         loop {
             match self.mem_get(self.ptr) % 100 {
                 1 => {
-                    *self.param_mut(3) = self.param(1) + self.param(2);
+                    *self.param_mut(3)? = self.param(1)? + self.param(2)?;
                     self.ptr += 4;
                 }
                 2 => {
-                    *self.param_mut(3) = self.param(1) * self.param(2);
+                    *self.param_mut(3)? = self.param(1)? * self.param(2)?;
                     self.ptr += 4;
                 }
                 3 => {
                     if let Some(input) = self.input.pop_front() {
-                        *self.param_mut(1) = input;
+                        *self.param_mut(1)? = input;
                         self.ptr += 2;
                     } else {
-                        break State::Waiting;
+                        break Ok(State::Waiting);
                     }
                 }
                 4 => {
-                    let output = self.param(1);
+                    let output = self.param(1)?;
                     self.ptr += 2;
-                    break State::Yielded(output);
+                    break Ok(State::Yielded(output));
                 }
                 5 => {
-                    if self.param(1) != 0 {
-                        self.ptr = cast(self.param(2));
+                    if self.param(1)? != 0 {
+                        self.ptr = cast(self.param(2)?);
                     } else {
                         self.ptr += 3;
                     }
                 }
                 6 => {
-                    if self.param(1) == 0 {
-                        self.ptr = cast(self.param(2));
+                    if self.param(1)? == 0 {
+                        self.ptr = cast(self.param(2)?);
                     } else {
                         self.ptr += 3;
                     }
                 }
                 7 => {
-                    *self.param_mut(3) = (self.param(1) < self.param(2)) as i64;
+                    *self.param_mut(3)? = (self.param(1)? < self.param(2)?) as i64;
                     self.ptr += 4;
                 }
                 8 => {
-                    *self.param_mut(3) = (self.param(1) == self.param(2)) as i64;
+                    *self.param_mut(3)? = (self.param(1)? == self.param(2)?) as i64;
                     self.ptr += 4;
                 }
                 9 => {
-                    self.relative_base += self.param(1);
+                    self.relative_base += self.param(1)?;
                     self.ptr += 2;
                 }
-                99 => break State::Complete,
-                opcode => panic!("unknown opcode `{}`", opcode),
+                99 => break Ok(State::Complete),
+                opcode => break Err(Error::UnknownOpcode { opcode }),
             }
         }
     }
 }
 
-fn run(input: &str, io: impl io::Io) -> io::Result<()> {
+fn run(input: &str, io: impl io::Io) -> Result<()> {
     let mut c = Computer::new(parse_program(input));
     let mut stdout = io::BufWriter::new(io::stdout());
     loop {
-        match c.next() {
+        match c.next()? {
             State::Yielded(value) => {
                 io.output(&mut stdout, value)?;
                 stdout.flush()?;
@@ -155,11 +170,11 @@ fn run(input: &str, io: impl io::Io) -> io::Result<()> {
 }
 
 /// Run the provided intcode program.
-pub fn intcode(input: &str) -> io::Result<()> {
+pub fn intcode(input: &str) -> Result<()> {
     run(input, io::Basic)
 }
 
 /// Run the provided intcode program.
-pub fn intcode_utf8(input: &str) -> io::Result<()> {
+pub fn intcode_utf8(input: &str) -> Result<()> {
     run(input, io::Utf8)
 }

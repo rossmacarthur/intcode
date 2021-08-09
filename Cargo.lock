@@ -165,6 +165,9 @@ dependencies = [
 [[package]]
 name = "intcode-run"
 version = "0.0.0"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "lazy_static"
