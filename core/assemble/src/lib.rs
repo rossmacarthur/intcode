@@ -4,9 +4,6 @@ mod lex;
 mod parse;
 mod span;
 
-use std::iter;
-
-use either::Either;
 use indexmap::IndexMap;
 
 use crate::ast::{Instr, Param, Program, RawParam, Stmt};
@@ -70,17 +67,22 @@ fn assemble(ast: Program) -> Vec<i64> {
                 output[i] += mode * 100;
             }
             Instr::Data(data) => {
-                let i = output.len();
-                output.extend(data.into_iter().flat_map(|d| match d {
-                    RawParam::Label(label, offset) => {
-                        labels.entry(label).or_default().refs.push(i);
-                        Either::Left(iter::once(offset))
+                for d in data {
+                    match d {
+                        RawParam::Label(label, offset) => {
+                            labels.entry(label).or_default().refs.push(output.len());
+                            output.push(offset);
+                        }
+                        RawParam::Number(value) => {
+                            output.push(value);
+                        }
+                        RawParam::String(string) => {
+                            output.extend(
+                                string.into_owned().into_bytes().into_iter().map(i64::from),
+                            );
+                        }
                     }
-                    RawParam::Number(value) => Either::Left(iter::once(value)),
-                    RawParam::String(string) => {
-                        Either::Right(string.into_owned().into_bytes().into_iter().map(i64::from))
-                    }
-                }));
+                }
             }
             Instr::Halt => output.push(instr.opcode()),
         }
