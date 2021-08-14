@@ -2,6 +2,13 @@
 
 use dairy::String;
 
+/// A label specified in a parameter.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Label<'i> {
+    InstructionPointer,
+    Fixed(&'i str),
+}
+
 /// A parameter mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Mode {
@@ -14,7 +21,7 @@ pub enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Param<'i> {
     /// A label, optionally with an offset.
-    Label(Mode, &'i str, i64),
+    Label(Mode, Label<'i>, i64),
     /// An exact number.
     Number(Mode, i64),
 }
@@ -23,7 +30,7 @@ pub enum Param<'i> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawParam<'i> {
     /// A label, optionally with an offset.
-    Label(&'i str, i64),
+    Label(Label<'i>, i64),
     /// An exact number.
     Number(i64),
     /// A string literal.
@@ -77,6 +84,15 @@ pub struct Stmt<'i> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program<'i> {
     pub stmts: Vec<Stmt<'i>>,
+}
+
+impl<'i> Label<'i> {
+    pub(crate) fn new(label: &'i str) -> Self {
+        match label {
+            "ip" => Self::InstructionPointer,
+            label => Self::Fixed(label),
+        }
+    }
 }
 
 impl From<Mode> for i64 {

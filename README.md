@@ -1,6 +1,6 @@
 # Intcode
 
-Compiler and runner for the Intcode computer from Advent of Code 2019.
+Assembler and runner for the Intcode computer from Advent of Code 2019.
 
 ## Hello World! program
 
@@ -11,18 +11,23 @@ The following program outputs "Hello World!".
 
 loop:
     OUT rb        ; output the current character in the message
-    ARB #1        ; go to the next character
+    ARB #1        ; move the relative base to the next character
     JNZ rb, #loop ; if the next character is non-zero then go back to `loop`
     HLT
 
 message:
-    DB "Hello World 😎\n"
+    DB "Hello World!\n"
 ```
 
-## Instructions
+## Assembly language
 
 The compiler can assemble the following instruction set specification into an
 Intcode program.
+
+### General
+
+Intcode assembly must be written in a UTF-8 encoded file with Unix line endings.
+Comments start with a semicolon `;`.
 
 ### Operand types
 
@@ -33,7 +38,7 @@ There are two types of operands.
   An identifier refers to an address in a program. For example: `end` in the
   following program refers the address of the `HLT` instruction.
   ```asm
-      JZ #0 #end
+      JZ #0, #end
   end:
       HLT
   ```
@@ -54,10 +59,11 @@ There are two types of operands.
   A binary, octal, decimal, or hexadecimal number. This can be used for
   specifying manual addresses, address offsets, or exact values. For example:
   the following reads in a value, minuses 3 from it, and outputs the result.
-  ```
+  ```asm
   IN  x
   ADD x, #-0b11, x+1
   OUT x+0x1
+  HLT
   ```
 
 ### Operand modes
@@ -81,8 +87,7 @@ There are three ways to specify the operands for different instructions.
 
   Specifies a value by specifying the *address* it should be read from as an
   offset of the *relative base*. For example:
-  - `rb+19` specifies the value at the relative base address with an offset of
-    19.
+  - `rb+3` specifies the value at the relative base address with an offset of 3.
 
 ### Opcodes
 
@@ -184,6 +189,18 @@ introduced in Advent of Code.
   message:
       DB "Hello World!", 10
   ```
+
+### Dynamic labels
+
+The `ip` label refers to the address of the next instruction. This can be used
+to dereference a pointer. Consider the following example where `ptr` refers to
+some address and we want to read a value into that address.
+
+```asm
+ADD ptr, #0, ip+1
+IN  -1
+HLT
+```
 
 ## License
 

@@ -11,7 +11,7 @@ use std::result;
 
 use self::integer::Sign;
 use self::unpack::TryUnpack;
-use crate::ast::{Instr, Mode, Param, Program, RawParam, Stmt};
+use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Token, Tokens};
 use crate::span::Span;
@@ -141,15 +141,15 @@ impl<'i> Parser<'i> {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Negative)?;
-                        Ok((span.include(s), RawParam::Label(value, offset)))
+                        Ok((span.include(s), RawParam::Label(Label::new(value), offset)))
                     }
                     (_, Token::Plus) => {
                         self.advance();
                         let (s, _) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Positive)?;
-                        Ok((span.include(s), RawParam::Label(value, offset)))
+                        Ok((span.include(s), RawParam::Label(Label::new(value), offset)))
                     }
-                    _ => Ok((span, RawParam::Label(value, 0))),
+                    _ => Ok((span, RawParam::Label(Label::new(value), 0))),
                 }
             }
             (span, tk) => Err(Error::new(
@@ -195,11 +195,11 @@ impl<'i> Parser<'i> {
                     (_, RawParam::String(_)) => {
                         Err(Error::new("string parameter only allowed with `DB`", span))
                     }
-                    (true, RawParam::Label("rb", _)) => Err(Error::new(
+                    (true, RawParam::Label(Label::Fixed("rb"), _)) => Err(Error::new(
                         "both immediate and relative mode specified",
                         span,
                     )),
-                    (false, RawParam::Label("rb", offset)) => {
+                    (false, RawParam::Label(Label::Fixed("rb"), offset)) => {
                         Ok(Param::Number(Mode::Relative, offset))
                     }
                     (_, RawParam::Label(value, offset)) => Ok(Param::Label(mode(), value, offset)),
@@ -225,7 +225,7 @@ impl<'i> Parser<'i> {
                 if prefix {
                     return Err(Error::new("immediate mode not allowed with `DB`", span.m));
                 }
-                if matches!(raw, RawParam::Label("rb", _)) {
+                if matches!(raw, RawParam::Label(Label::Fixed("rb"), _)) {
                     return Err(Error::new(
                         "relative mode not allowed with `DB`",
                         span.m..span.m + 2,
@@ -305,10 +305,13 @@ impl<'i> Parser<'i> {
                 self.advance();
                 self.expect(Token::Colon)?;
                 let label = span.as_str(self.input);
-                if label == "rb" {
-                    return Err(Error::new("label is reserved for the relative base", span));
-                } else if !self.labels.insert(label) {
-                    return Err(Error::new("label already used", span));
+                if let Some(msg) = match label {
+                    "ip" => Some("label is reserved for the instruction pointer"),
+                    "rb" => Some("label is reserved for the relative base"),
+                    label if !self.labels.insert(label) => Some("label already used"),
+                    _ => None,
+                } {
+                    return Err(Error::new(msg, span));
                 }
                 Some(label)
             }

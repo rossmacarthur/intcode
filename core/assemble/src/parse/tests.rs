@@ -42,8 +42,8 @@ c: DB 50"#;
                 Stmt {
                     label: None,
                     instr: Instr::Add(
-                        Param::Label(Mode::Positional, "a", 0),
-                        Param::Label(Mode::Positional, "b", 0),
+                        Param::Label(Mode::Positional, Label::new("a"), 0),
+                        Param::Label(Mode::Positional, Label::new("b"), 0),
                         Param::Number(Mode::Positional, 3)
                     )
                 },
@@ -51,7 +51,7 @@ c: DB 50"#;
                     label: None,
                     instr: Instr::Multiply(
                         Param::Number(Mode::Positional, 3),
-                        Param::Label(Mode::Positional, "c", 0),
+                        Param::Label(Mode::Positional, Label::new("c"), 0),
                         Param::Number(Mode::Positional, 0)
                     )
                 },

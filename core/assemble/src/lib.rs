@@ -6,7 +6,7 @@ mod span;
 
 use indexmap::IndexMap;
 
-use crate::ast::{Instr, Param, Program, RawParam, Stmt};
+use crate::ast::{Instr, Label, Param, Program, RawParam, Stmt};
 
 pub use crate::error::Error;
 
@@ -29,10 +29,11 @@ fn assemble(ast: Program) -> Vec<i64> {
             }
         }
 
-        let mut param = |output: &mut Vec<_>, p| -> i64 {
+        let mut param = |output: &mut Vec<_>, p, ip| -> i64 {
             let (mode, value) = match p {
                 Param::Number(m, value) => (m.into(), value),
-                Param::Label(m, label, offset) => {
+                Param::Label(m, Label::InstructionPointer, offset) => (m.into(), ip + offset),
+                Param::Label(m, Label::Fixed(label), offset) => {
                     labels.entry(label).or_default().refs.push(output.len());
                     (m.into(), offset)
                 }
@@ -47,29 +48,36 @@ fn assemble(ast: Program) -> Vec<i64> {
             | Instr::LessThan(x, y, z)
             | Instr::Equal(x, y, z) => {
                 let i = output.len();
+                let ip = (i + 4) as i64;
                 output.push(instr.opcode());
-                let x_mode = param(&mut output, x);
-                let y_mode = param(&mut output, y);
-                let z_mode = param(&mut output, z);
+                let x_mode = param(&mut output, x, ip);
+                let y_mode = param(&mut output, y, ip);
+                let z_mode = param(&mut output, z, ip);
                 output[i] += x_mode * 100 + y_mode * 1_000 + z_mode * 10_000;
             }
             Instr::JumpNonZero(x, y) | Instr::JumpZero(x, y) => {
                 let i = output.len();
+                let ip = (i + 3) as i64;
                 output.push(instr.opcode());
-                let x_mode = param(&mut output, x);
-                let y_mode = param(&mut output, y);
+                let x_mode = param(&mut output, x, ip);
+                let y_mode = param(&mut output, y, ip);
                 output[i] += x_mode * 100 + y_mode * 1_000;
             }
             Instr::Input(p) | Instr::Output(p) | Instr::AdjustRelativeBase(p) => {
                 let i = output.len();
+                let ip = (i + 2) as i64;
                 output.push(instr.opcode());
-                let mode = param(&mut output, p);
+                let mode = param(&mut output, p, ip);
                 output[i] += mode * 100;
             }
             Instr::Data(data) => {
+                let ip = (output.len() + data.len()) as i64;
                 for d in data {
                     match d {
-                        RawParam::Label(label, offset) => {
+                        RawParam::Label(Label::InstructionPointer, offset) => {
+                            output.push(ip + offset);
+                        }
+                        RawParam::Label(Label::Fixed(label), offset) => {
                             labels.entry(label).or_default().refs.push(output.len());
                             output.push(offset);
                         }
