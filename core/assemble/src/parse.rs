@@ -6,7 +6,6 @@ mod string;
 mod tests;
 mod unpack;
 
-use std::collections::HashSet;
 use std::result;
 
 use self::integer::Sign;
@@ -14,12 +13,11 @@ use self::unpack::TryUnpack;
 use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
 use crate::error::{Error, Result};
 use crate::lex::{Token, Tokens};
-use crate::span::Span;
+use crate::span::{Span, S};
 
 struct Parser<'i> {
     input: &'i str,
     tokens: Tokens<'i>,
-    labels: HashSet<&'i str>,
 }
 
 enum Ident {
@@ -70,25 +68,31 @@ impl Token {
     }
 }
 
+impl<'i> From<&'i str> for Label<'i> {
+    fn from(s: &'i str) -> Self {
+        match s {
+            "_" => Self::Underscore,
+            "ip" => Self::InstructionPointer,
+            label => Self::Fixed(label),
+        }
+    }
+}
+
 impl<'i> Parser<'i> {
     fn new(input: &'i str) -> Self {
         let tokens = Tokens::new(input);
-        Self {
-            input,
-            tokens,
-            labels: HashSet::new(),
-        }
+        Self { input, tokens }
     }
 
-    fn peek(&self) -> Result<(Span, Token)> {
+    fn peek(&self) -> Result<S<Token>> {
         self.tokens.clone().find(Token::is_interesting)
     }
 
     fn is_next<P: FnOnce(&Token) -> bool>(&self, predicate: P) -> Result<bool> {
-        Ok(matches!(self.peek()?, (_, tk) if predicate(&tk)))
+        Ok(matches!(self.peek()?, tk if predicate(&tk)))
     }
 
-    fn eat(&mut self) -> Result<(Span, Token)> {
+    fn eat(&mut self) -> Result<S<Token>> {
         self.tokens.find(Token::is_interesting)
     }
 
@@ -103,74 +107,74 @@ impl<'i> Parser<'i> {
         Ok(())
     }
 
-    fn expect(&mut self, want: Token) -> Result<(Span, Token)> {
+    fn expect(&mut self, want: Token) -> Result<S<Token>> {
         match self.peek()? {
-            (span, tk) if tk == want => {
+            token if *token == want => {
                 self.advance();
-                Ok((span, tk))
+                Ok(token)
             }
-            (span, tk) => Err(Error::new(
+            S(tk, span) => Err(Error::new(
                 format!("expected {}, found {}", want.human(), tk.human()),
                 span,
             )),
         }
     }
 
-    fn _eat_raw_param(&mut self) -> Result<(Span, RawParam<'i>)> {
+    fn _eat_raw_param(&mut self) -> Result<S<RawParam<'i>>> {
         match self.eat()? {
-            (span, Token::String) => {
+            S(Token::String, span) => {
                 let value = string::parse(self.input, span)?;
-                Ok((span, RawParam::String(value)))
+                Ok(S(RawParam::String(value), span))
             }
-            (span, Token::Minus) => {
-                let (s, _) = self.expect(Token::Number)?;
+            S(Token::Minus, span) => {
+                let S(_, s) = self.expect(Token::Number)?;
                 let value = integer::parse(self.input, s, Sign::Negative)?;
-                Ok((span.include(s), RawParam::Number(value)))
+                Ok(S(RawParam::Number(value), span.include(s)))
             }
-            (span, Token::Number) => {
+            S(Token::Number, span) => {
                 let value = integer::parse(self.input, span, Sign::Positive)?;
-                Ok((span, RawParam::Number(value)))
+                Ok(S(RawParam::Number(value), span))
             }
-            (span, Token::Ident) => {
+            S(Token::Ident, span) => {
                 let value = span.as_str(self.input);
                 if Ident::new(value).is_mnemonic() {
                     return Err(Error::new("expected a parameter, found a mnemonic", span));
                 }
-                match self.peek()? {
-                    (_, Token::Minus) => {
+                let label = S(Label::from(value), span);
+                match *self.peek()? {
+                    Token::Minus => {
                         self.advance();
-                        let (s, _) = self.expect(Token::Number)?;
+                        let S(_, s) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Negative)?;
-                        Ok((span.include(s), RawParam::Label(Label::new(value), offset)))
+                        Ok(S(RawParam::Label(label, offset), span.include(s)))
                     }
-                    (_, Token::Plus) => {
+                    Token::Plus => {
                         self.advance();
-                        let (s, _) = self.expect(Token::Number)?;
+                        let S(_, s) = self.expect(Token::Number)?;
                         let offset = integer::parse(self.input, s, Sign::Positive)?;
-                        Ok((span.include(s), RawParam::Label(Label::new(value), offset)))
+                        Ok(S(RawParam::Label(label, offset), span.include(s)))
                     }
-                    _ => Ok((span, RawParam::Label(Label::new(value), 0))),
+                    _ => Ok(S(RawParam::Label(label, 0), span)),
                 }
             }
-            (span, tk) => Err(Error::new(
+            S(tk, span) => Err(Error::new(
                 format!("expected a parameter, found {}", tk.human()),
                 span,
             )),
         }
     }
 
-    fn eat_raw_param(&mut self) -> Result<(bool, Span, RawParam<'i>)> {
+    fn eat_raw_param(&mut self) -> Result<(Option<Span>, S<RawParam<'i>>)> {
         if self.is_next(Token::is_hash)? {
-            let (span, _) = self.expect(Token::Hash)?;
-            let (s, raw) = self._eat_raw_param()?;
-            Ok((true, span.include(s), raw))
+            let S(_, span) = self.expect(Token::Hash)?;
+            let S(raw, s) = self._eat_raw_param()?;
+            Ok((Some(span), S(raw, span.include(s))))
         } else {
-            let (span, raw) = self._eat_raw_param()?;
-            Ok((false, span, raw))
+            Ok((None, self._eat_raw_param()?))
         }
     }
 
-    fn eat_raw_params(&mut self) -> Result<Vec<(bool, Span, RawParam<'i>)>> {
+    fn eat_raw_params(&mut self) -> Result<Vec<(Option<Span>, S<RawParam<'i>>)>> {
         let mut params = Vec::new();
         if self.is_next(Token::is_not_newline_or_eof)? {
             params.push(self.eat_raw_param()?);
@@ -182,28 +186,31 @@ impl<'i> Parser<'i> {
         Ok(params)
     }
 
-    fn eat_params<T: TryUnpack<Param<'i>>>(&mut self, span: Span) -> Result<T> {
+    fn eat_params<T: TryUnpack<S<Param<'i>>>>(&mut self, span: Span) -> Result<T> {
         let params: Vec<_> = self
             .eat_raw_params()?
             .into_iter()
-            .map(|(prefix, span, raw)| {
+            .map(|(prefix, raw_param)| {
                 let mode = || match prefix {
-                    true => Mode::Immediate,
-                    false => Mode::Positional,
+                    Some(_) => Mode::Immediate,
+                    None => Mode::Positional,
                 };
-                match (prefix, raw) {
-                    (_, RawParam::String(_)) => {
+                match (prefix, raw_param) {
+                    (_, S(RawParam::String(_), span)) => {
                         Err(Error::new("string parameter only allowed with `DB`", span))
                     }
-                    (true, RawParam::Label(Label::Fixed("rb"), _)) => Err(Error::new(
-                        "both immediate and relative mode specified",
-                        span,
-                    )),
-                    (false, RawParam::Label(Label::Fixed("rb"), offset)) => {
-                        Ok(Param::Number(Mode::Relative, offset))
+                    (Some(_), S(RawParam::Label(S(Label::Fixed("rb"), _), _), span)) => Err(
+                        Error::new("both immediate and relative mode specified", span),
+                    ),
+                    (None, S(RawParam::Label(S(Label::Fixed("rb"), _), offset), span)) => {
+                        Ok(S(Param::Number(Mode::Relative, offset), span))
                     }
-                    (_, RawParam::Label(value, offset)) => Ok(Param::Label(mode(), value, offset)),
-                    (_, RawParam::Number(value)) => Ok(Param::Number(mode(), value)),
+                    (_, S(RawParam::Label(value, offset), span)) => {
+                        Ok(S(Param::Label(mode(), value, offset), span))
+                    }
+                    (_, S(RawParam::Number(value), span)) => {
+                        Ok(S(Param::Number(mode(), value), span))
+                    }
                 }
             })
             .collect::<Result<_>>()?;
@@ -218,26 +225,23 @@ impl<'i> Parser<'i> {
         })
     }
 
-    fn eat_data_params(&mut self) -> Result<Vec<RawParam<'i>>> {
+    fn eat_data_params(&mut self) -> Result<Vec<S<RawParam<'i>>>> {
         self.eat_raw_params()?
             .into_iter()
-            .map(|(prefix, span, raw)| {
-                if prefix {
-                    return Err(Error::new("immediate mode not allowed with `DB`", span.m));
+            .map(|(prefix, raw_param)| {
+                if let Some(span) = prefix {
+                    return Err(Error::new("immediate mode not allowed with `DB`", span));
                 }
-                if matches!(raw, RawParam::Label(Label::Fixed("rb"), _)) {
-                    return Err(Error::new(
-                        "relative mode not allowed with `DB`",
-                        span.m..span.m + 2,
-                    ));
+                if let S(RawParam::Label(S(Label::Fixed("rb"), span), _), _) = raw_param {
+                    return Err(Error::new("relative mode not allowed with `DB`", span));
                 }
-                Ok(raw)
+                Ok(raw_param)
             })
             .collect()
     }
 
-    fn eat_instr(&mut self) -> Result<Instr<'i>> {
-        let (span, _) = self.expect(Token::Ident)?;
+    fn eat_instr(&mut self) -> Result<S<Instr<'i>>> {
+        let S(_, span) = self.expect(Token::Ident)?;
         let opcode = span.as_str(self.input);
         let instr = match opcode {
             "ADD" => {
@@ -292,7 +296,8 @@ impl<'i> Parser<'i> {
                 return Err(Error::new(msg, span));
             }
         };
-        Ok(instr)
+        let S(_, s) = self.peek()?;
+        Ok(S(instr, span.include(s.m..s.m)))
     }
 
     fn eat_stmt(&mut self) -> Result<Option<Stmt<'i>>> {
@@ -301,20 +306,15 @@ impl<'i> Parser<'i> {
             return Ok(None);
         }
         let label = match self.peek()? {
-            (span, Token::Ident) if Ident::new(span.as_str(self.input)).is_label() => {
-                self.advance();
-                self.expect(Token::Colon)?;
-                let label = span.as_str(self.input);
-                if let Some(msg) = match label {
-                    "_" => Some("label is reserved to indicate a runtime value"),
-                    "ip" => Some("label is reserved to refer to the instruction pointer"),
-                    "rb" => Some("label is reserved to refer to the relative base"),
-                    label if !self.labels.insert(label) => Some("label already used"),
-                    _ => None,
-                } {
-                    return Err(Error::new(msg, span));
+            S(Token::Ident, span) => {
+                let value = span.as_str(self.input);
+                if Ident::new(value).is_label() {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    Some(S(Label::from(value), span))
+                } else {
+                    None
                 }
-                Some(label)
             }
             _ => None,
         };

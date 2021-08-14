@@ -3,18 +3,18 @@ use super::*;
 use pretty_assertions::assert_eq;
 
 impl<'i> Iterator for Tokens<'i> {
-    type Item = Result<(Span, Token)>;
+    type Item = Result<S<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next() {
-            Ok((_, Token::Eof)) => None,
+            Ok(S(Token::Eof, _)) => None,
             ts => Some(ts),
         }
     }
 }
 
 #[track_caller]
-fn tokenize(input: &str) -> Result<Vec<(Span, Token)>> {
+fn tokenize(input: &str) -> Result<Vec<S<Token>>> {
     Tokens::new(input).collect()
 }
 
@@ -24,24 +24,24 @@ fn basic() {
     assert_eq!(
         tokens,
         [
-            span(Token::Ident, 0..5),
-            span(Token::Colon, 5..6),
-            span(Token::Newline, 6..7),
-            span(Token::Ident, 7..10),
-            span(Token::Whitespace, 10..11),
-            span(Token::Ident, 11..14),
-            span(Token::Comma, 14..15),
-            span(Token::Whitespace, 15..16),
-            span(Token::Hash, 16..17),
-            span(Token::Number, 17..19),
-            span(Token::Comma, 19..20),
-            span(Token::Whitespace, 20..21),
-            span(Token::Ident, 21..23),
-            span(Token::Plus, 23..24),
-            span(Token::Number, 24..25),
-            span(Token::Whitespace, 25..28),
-            span(Token::Comment, 28..47),
-            span(Token::Newline, 47..48),
+            s(Token::Ident, 0..5),
+            s(Token::Colon, 5..6),
+            s(Token::Newline, 6..7),
+            s(Token::Ident, 7..10),
+            s(Token::Whitespace, 10..11),
+            s(Token::Ident, 11..14),
+            s(Token::Comma, 14..15),
+            s(Token::Whitespace, 15..16),
+            s(Token::Hash, 16..17),
+            s(Token::Number, 17..19),
+            s(Token::Comma, 19..20),
+            s(Token::Whitespace, 20..21),
+            s(Token::Ident, 21..23),
+            s(Token::Plus, 23..24),
+            s(Token::Number, 24..25),
+            s(Token::Whitespace, 25..28),
+            s(Token::Comment, 28..47),
+            s(Token::Newline, 47..48),
         ]
     );
 }
@@ -53,7 +53,7 @@ fn numbers() {
     ];
     for input in tests {
         let tokens = tokenize(input).unwrap();
-        assert!(matches!(&*tokens, &[(_, Token::Number)]));
+        assert!(matches!(&*tokens, &[S(Token::Number, _)]));
     }
 }
 
@@ -67,7 +67,7 @@ fn strings() {
     ];
     for (input, range) in tests {
         let tokens = tokenize(input).unwrap();
-        assert_eq!(tokens, [span(Token::String, range)]);
+        assert_eq!(tokens, [s(Token::String, range)]);
     }
 }
 

@@ -1,11 +1,11 @@
-use intcode_assemble::to_ast;
+use intcode_assemble::to_intcode;
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
     yansi::Paint::disable();
-    to_ast(asm)
+    to_intcode(asm)
         .unwrap_err()
         .into_iter()
         .map(|e| e.pretty(asm, "<input>"))
@@ -243,11 +243,11 @@ fn parse_invalid_opcode() {
 
 #[test]
 fn parse_reserved_label_underscore() {
-    let asm = "_: ADD x, y, z";
+    let asm = "_: IN _";
     let expected = "
   --> <input>:1:1
    |
- 1 | _: ADD x, y, z
+ 1 | _: IN _
    | ^ label is reserved to indicate a runtime value
 ";
     assert_eq!(assemble(asm), expected);
@@ -255,11 +255,11 @@ fn parse_reserved_label_underscore() {
 
 #[test]
 fn parse_reserved_label_ip() {
-    let asm = "ip: ADD x, y, z";
+    let asm = "ip: IN _";
     let expected = "
   --> <input>:1:1
    |
- 1 | ip: ADD x, y, z
+ 1 | ip: IN _
    | ^^ label is reserved to refer to the instruction pointer
 ";
     assert_eq!(assemble(asm), expected);
@@ -267,27 +267,12 @@ fn parse_reserved_label_ip() {
 
 #[test]
 fn parse_reserved_label_rb() {
-    let asm = "rb: ADD x, y, z";
+    let asm = "rb: IN _";
     let expected = "
   --> <input>:1:1
    |
- 1 | rb: ADD x, y, z
+ 1 | rb: IN _
    | ^^ label is reserved to refer to the relative base
-";
-    assert_eq!(assemble(asm), expected);
-}
-
-#[test]
-fn parse_duplicate_label() {
-    let asm = "\
-test: ADD x, y, z
-test: HLT
-";
-    let expected = "
-  --> <input>:2:1
-   |
- 2 | test: HLT
-   | ^^^^ label already used
 ";
     assert_eq!(assemble(asm), expected);
 }
@@ -324,6 +309,45 @@ HLT #0
    |
  2 | HLT #0
    | ^^^ expected 0 parameters, found 1
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn assemble_duplicate_label() {
+    let asm = "\
+test: IN _
+test: HLT
+";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | test: IN _
+   | ^^^^ first definition of label
+
+
+  --> <input>:2:1
+   |
+ 2 | test: HLT
+   | ^^^^ label redefined
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn assemble_undefined_label() {
+    let asm = "JZ x, y";
+    let expected = "
+  --> <input>:1:4
+   |
+ 1 | JZ x, y
+   |    ^ undefined label
+
+
+  --> <input>:1:7
+   |
+ 1 | JZ x, y
+   |       ^ undefined label
 ";
     assert_eq!(assemble(asm), expected);
 }

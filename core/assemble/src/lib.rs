@@ -7,35 +7,69 @@ mod span;
 use indexmap::IndexMap;
 
 use crate::ast::{Instr, Label, Param, Program, RawParam, Stmt};
+use crate::span::{Span, S};
 
 pub use crate::error::Error;
 
 #[derive(Debug, Default)]
 struct State {
-    label: Option<usize>,
-    refs: Vec<usize>,
+    defs: Vec<(usize, Span)>,
+    refs: Vec<(usize, Span)>,
 }
 
-fn assemble(ast: Program) -> Vec<i64> {
+fn insert_label<'a>(
+    labels: &mut IndexMap<&'a str, State>,
+    label: Option<S<Label<'a>>>,
+    address: usize,
+) -> Result<(), Error> {
+    match label {
+        Some(S(Label::Underscore, span)) => {
+            return Err(Error::new(
+                "label is reserved to indicate a runtime value",
+                span,
+            ));
+        }
+        Some(S(Label::InstructionPointer, span)) => {
+            return Err(Error::new(
+                "label is reserved to refer to the instruction pointer",
+                span,
+            ));
+        }
+        Some(S(Label::Fixed("rb"), span)) => {
+            return Err(Error::new(
+                "label is reserved to refer to the relative base",
+                span,
+            ));
+        }
+        Some(S(Label::Fixed(label), span)) => {
+            labels.entry(label).or_default().defs.push((address, span));
+        }
+        None => {}
+    }
+    Ok(())
+}
+
+fn assemble(ast: Program) -> Result<Vec<i64>, Vec<Error>> {
     let mut output = Vec::new();
-    let mut labels = IndexMap::<_, State>::new();
+    let mut errors = Vec::new();
+    let mut labels = IndexMap::<&str, State>::new();
 
     for Stmt { label, instr } in ast.stmts {
-        if let Some(label) = label {
-            let v = labels.entry(label).or_default();
-            match v.label {
-                Some(_) => unreachable!(),
-                None => v.label = Some(output.len()),
-            }
-        }
+        insert_label(&mut labels, label, output.len())
+            .map_err(|err| errors.push(err))
+            .ok();
 
-        let mut param = |output: &mut Vec<_>, p, ip| -> i64 {
+        let mut param = |output: &mut Vec<_>, S(p, _), ip| -> i64 {
             let (mode, value) = match p {
                 Param::Number(m, value) => (m.into(), value),
-                Param::Label(m, Label::Underscore, offset) => (m.into(), offset),
-                Param::Label(m, Label::InstructionPointer, offset) => (m.into(), ip + offset),
-                Param::Label(m, Label::Fixed(label), offset) => {
-                    labels.entry(label).or_default().refs.push(output.len());
+                Param::Label(m, S(Label::Underscore, _), offset) => (m.into(), offset),
+                Param::Label(m, S(Label::InstructionPointer, _), offset) => (m.into(), ip + offset),
+                Param::Label(m, S(Label::Fixed(label), span), offset) => {
+                    labels
+                        .entry(label)
+                        .or_default()
+                        .refs
+                        .push((output.len(), span));
                     (m.into(), offset)
                 }
             };
@@ -43,7 +77,7 @@ fn assemble(ast: Program) -> Vec<i64> {
             mode
         };
 
-        match instr {
+        match instr.0 {
             Instr::Add(x, y, z)
             | Instr::Multiply(x, y, z)
             | Instr::LessThan(x, y, z)
@@ -74,15 +108,19 @@ fn assemble(ast: Program) -> Vec<i64> {
             Instr::Data(data) => {
                 let ip = (output.len() + data.len()) as i64;
                 for d in data {
-                    match d {
-                        RawParam::Label(Label::Underscore, offset) => {
+                    match d.0 {
+                        RawParam::Label(S(Label::Underscore, _), offset) => {
                             output.push(offset);
                         }
-                        RawParam::Label(Label::InstructionPointer, offset) => {
+                        RawParam::Label(S(Label::InstructionPointer, _), offset) => {
                             output.push(ip + offset);
                         }
-                        RawParam::Label(Label::Fixed(label), offset) => {
-                            labels.entry(label).or_default().refs.push(output.len());
+                        RawParam::Label(S(Label::Fixed(label), span), offset) => {
+                            labels
+                                .entry(label)
+                                .or_default()
+                                .refs
+                                .push((output.len(), span));
                             output.push(offset);
                         }
                         RawParam::Number(value) => {
@@ -100,34 +138,45 @@ fn assemble(ast: Program) -> Vec<i64> {
         }
     }
 
-    for (_, State { label, refs }) in labels {
-        let ptr = match label {
-            Some(ptr) => ptr,
-            None => {
-                output.push(0);
-                output.len() - 1
+    for (_, State { defs, refs }) in labels {
+        match defs.as_slice() {
+            &[] => {
+                for (_, span) in refs {
+                    errors.push(Error::new("undefined label", span));
+                }
             }
-        };
-        for r in refs {
-            output[r] += ptr as i64;
+            &[(address, _)] => {
+                for (r, _) in refs {
+                    output[r] += address as i64;
+                }
+            }
+            _ => {
+                for (i, (_, span)) in defs.into_iter().enumerate() {
+                    let msg = if i == 0 {
+                        "first definition of label"
+                    } else {
+                        "label redefined here"
+                    };
+                    errors.push(Error::new(msg, span))
+                }
+            }
         }
     }
-
-    output
-}
-
-/// Assemble the program as a valid AST.
-pub fn to_ast(input: &str) -> Result<Program, Vec<Error>> {
-    parse::program(input)
+    match errors.is_empty() {
+        true => Ok(output),
+        false => Err(errors),
+    }
 }
 
 /// Assemble the program as intcode.
 pub fn to_intcode(input: &str) -> Result<String, Vec<Error>> {
-    parse::program(input).map(|prog| {
-        assemble(prog)
-            .into_iter()
-            .map(|d| d.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
+    parse::program(input).and_then(|prog| {
+        assemble(prog).map(|output| {
+            output
+                .into_iter()
+                .map(|d| d.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        })
     })
 }

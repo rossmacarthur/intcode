@@ -42,17 +42,6 @@ There are two types of operands.
       HLT
   ```
 
-  If the label is not defined by the programmer in a program then the assembler
-  will allocate memory at the end for it. For example: the following program
-  reads in a value to the address `x`, increments it, and outputs the
-  incremented value.
-  ```asm
-  IN  x
-  ADD x, #1, x
-  OUT x
-  HLT
-  ```
-
 - **Number**
 
   A binary, octal, decimal, or hexadecimal number. This can be used for

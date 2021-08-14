@@ -103,6 +103,7 @@ fn advent_day9_example_16_digit_number() {
 MUL #34915192, #34915192, x
 OUT x
 HLT
+x: DB 0
 ";
     let expected = "1102,34915192,34915192,7,4,7,99,0";
     assert_eq!(assemble(asm).unwrap(), expected);

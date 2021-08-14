@@ -7,7 +7,7 @@ use std::ops;
 use std::str;
 
 use crate::error::{Error, Result};
-use crate::span::Span;
+use crate::span::{s, S};
 
 /// The type of token yielded by the lexer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub enum Token {
     String,
     /// Comment contents including the `;` prefix.
     Comment,
-    /// Reached the end of input.
+    /// The end of input.
     Eof,
 }
 
@@ -55,10 +55,6 @@ pub struct Tokens<'i> {
 ////////////////////////////////////////////////////////////////////////////////
 // Implementations
 ////////////////////////////////////////////////////////////////////////////////
-
-fn span(token: Token, span: impl Into<Span>) -> (Span, Token) {
-    (span.into(), token)
-}
 
 impl Token {
     pub fn human(&self) -> &'static str {
@@ -141,16 +137,16 @@ impl<'i> Tokens<'i> {
     }
 
     /// Lexes the next token, including all characters satisfying the predicate.
-    fn lex_token<P>(&mut self, token: Token, i: usize, predicate: P) -> (Span, Token)
+    fn lex_token<P>(&mut self, tk: Token, i: usize, predicate: P) -> S<Token>
     where
         P: Fn(&char) -> bool + Copy,
     {
         while self.lex_if(predicate) {}
-        span(token, i..self.iter.peek_index())
+        s(tk, i..self.iter.peek_index())
     }
 
     /// Lexes the next string.
-    fn lex_string(&mut self, i: usize) -> Result<(Span, Token)> {
+    fn lex_string(&mut self, i: usize) -> Result<S<Token>> {
         let mut curr = '"';
         loop {
             match self.iter.next() {
@@ -161,7 +157,7 @@ impl<'i> Tokens<'i> {
                     break Err(Error::new("undelimited string", i..j));
                 }
                 Some((_, '"')) if curr != '\\' => {
-                    break Ok(span(Token::String, i..self.iter.peek_index()));
+                    break Ok(s(Token::String, i..self.iter.peek_index()));
                 }
                 Some((_, c)) => {
                     curr = c;
@@ -171,22 +167,22 @@ impl<'i> Tokens<'i> {
     }
 
     /// Returns the next token in the lexer.
-    pub fn next(&mut self) -> Result<(Span, Token)> {
+    pub fn next(&mut self) -> Result<S<Token>> {
         let next = match self.iter.next() {
             None => {
                 let i = self.iter.peek_index();
-                return Ok(span(Token::Eof, i..i));
+                return Ok(s(Token::Eof, i..i));
             }
             Some(next) => next,
         };
         let token = match next {
             // Single character to token mappings.
-            (i, ':') => span(Token::Colon, i),
-            (i, ',') => span(Token::Comma, i),
-            (i, '#') => span(Token::Hash, i),
-            (i, '+') => span(Token::Plus, i),
-            (i, '-') => span(Token::Minus, i),
-            (i, '\n') => span(Token::Newline, i),
+            (i, ':') => s(Token::Colon, i..i + 1),
+            (i, ',') => s(Token::Comma, i..i + 1),
+            (i, '#') => s(Token::Hash, i..i + 1),
+            (i, '+') => s(Token::Plus, i..i + 1),
+            (i, '-') => s(Token::Minus, i..i + 1),
+            (i, '\n') => s(Token::Newline, i..i + 1),
 
             // Multi-character tokens with a distinct starting character.
             (i, ';') => self.lex_token(Token::Comment, i, |&c| c != '\n'),
@@ -211,15 +207,15 @@ impl<'i> Tokens<'i> {
     }
 
     /// Finds the next token matching the predicate.
-    pub fn find<P>(&mut self, mut predicate: P) -> Result<(Span, Token)>
+    pub fn find<P>(&mut self, mut predicate: P) -> Result<S<Token>>
     where
         P: FnMut(&Token) -> bool,
     {
         loop {
             match self.next()? {
-                (span, Token::Eof) => break Ok((span, Token::Eof)),
-                (span, tk) if predicate(&tk) => break Ok((span, tk)),
-                (_, _) => continue,
+                S(Token::Eof, span) => break Ok(S(Token::Eof, span)),
+                S(tk, span) if predicate(&tk) => break Ok(S(tk, span)),
+                _ => continue,
             }
         }
     }

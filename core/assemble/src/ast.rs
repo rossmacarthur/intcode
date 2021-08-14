@@ -2,6 +2,8 @@
 
 use dairy::String;
 
+use crate::span::S;
+
 /// A label specified in a parameter.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Label<'i> {
@@ -22,7 +24,7 @@ pub enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Param<'i> {
     /// A label, optionally with an offset.
-    Label(Mode, Label<'i>, i64),
+    Label(Mode, S<Label<'i>>, i64),
     /// An exact number.
     Number(Mode, i64),
 }
@@ -31,7 +33,7 @@ pub enum Param<'i> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawParam<'i> {
     /// A label, optionally with an offset.
-    Label(Label<'i>, i64),
+    Label(S<Label<'i>>, i64),
     /// An exact number.
     Number(i64),
     /// A string literal.
@@ -45,31 +47,31 @@ pub enum RawParam<'i> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instr<'i> {
     /// Adds two parameters together.
-    Add(Param<'i>, Param<'i>, Param<'i>),
+    Add(S<Param<'i>>, S<Param<'i>>, S<Param<'i>>),
     /// Multiplies two parameters together.
-    Multiply(Param<'i>, Param<'i>, Param<'i>),
+    Multiply(S<Param<'i>>, S<Param<'i>>, S<Param<'i>>),
     /// Compares two parameters.
-    LessThan(Param<'i>, Param<'i>, Param<'i>),
+    LessThan(S<Param<'i>>, S<Param<'i>>, S<Param<'i>>),
     /// Checks if two parameters are equal.
-    Equal(Param<'i>, Param<'i>, Param<'i>),
+    Equal(S<Param<'i>>, S<Param<'i>>, S<Param<'i>>),
 
     /// Moves the instruction pointer if the result is non-zero.
-    JumpNonZero(Param<'i>, Param<'i>),
+    JumpNonZero(S<Param<'i>>, S<Param<'i>>),
     /// Moves the instruction pointer if the result is zero.
-    JumpZero(Param<'i>, Param<'i>),
+    JumpZero(S<Param<'i>>, S<Param<'i>>),
 
     /// Fetches external data.
-    Input(Param<'i>),
+    Input(S<Param<'i>>),
     /// Outputs external data.
-    Output(Param<'i>),
+    Output(S<Param<'i>>),
     /// Adjusts the relative base by the given amount.
-    AdjustRelativeBase(Param<'i>),
+    AdjustRelativeBase(S<Param<'i>>),
 
     /// Halts the program.
     Halt,
 
     /// (Pseudo) Places raw data in the program.
-    Data(Vec<RawParam<'i>>),
+    Data(Vec<S<RawParam<'i>>>),
 }
 
 /// A single line in a program.
@@ -77,24 +79,14 @@ pub enum Instr<'i> {
 /// This is simply just an instruction together with an optional label.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stmt<'i> {
-    pub label: Option<&'i str>,
-    pub instr: Instr<'i>,
+    pub label: Option<S<Label<'i>>>,
+    pub instr: S<Instr<'i>>,
 }
 
 /// An entire program.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program<'i> {
     pub stmts: Vec<Stmt<'i>>,
-}
-
-impl<'i> Label<'i> {
-    pub(crate) fn new(label: &'i str) -> Self {
-        match label {
-            "_" => Self::Underscore,
-            "ip" => Self::InstructionPointer,
-            label => Self::Fixed(label),
-        }
-    }
 }
 
 impl From<Mode> for i64 {

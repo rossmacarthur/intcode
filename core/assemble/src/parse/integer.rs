@@ -22,9 +22,10 @@ pub fn parse(input: &str, span: Span, sign: Sign) -> Result<i64> {
         .filter(|(_, &d)| d != b'_')
         .try_fold(0i64, |acc, (j, &d)| {
             let x = (d as char).to_digit(radix).ok_or_else(|| {
+                let m = span.m + i + j;
                 Error::new(
                     format!("invalid digit for base {} literal", radix),
-                    span.m + i + j,
+                    m..m + 1,
                 )
             })?;
             let err = || {
