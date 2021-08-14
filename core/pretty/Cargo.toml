@@ -1,5 +1,5 @@
 [package]
-name = "intcode-assemble"
+name = "intcode-pretty"
 version = "0.0.0"
 authors = ["Ross MacArthur <ross@macarthur.io>"]
 edition = "2018"
@@ -7,10 +7,5 @@ publish = false
 
 [dependencies]
 dairy = "0.2.2"
-indexmap = "1.7.0"
-thiserror = "1.0.26"
-
-[dev-dependencies]
-intcode-pretty = { path = "../pretty" }
-pretty_assertions = "0.7.2"
+unicode-width = "0.1.8"
 yansi = "0.5.0"

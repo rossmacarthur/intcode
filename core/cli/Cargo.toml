@@ -11,6 +11,7 @@ assemble = { package = "intcode-assemble", path = "../assemble" }
 atty = "0.2.14"
 clap = "3.0.0-beta.2"
 indexmap = "1.7.0"
+pretty = { package = "intcode-pretty", path = "../pretty" }
 run = { package = "intcode-run", path = "../run" }
 thiserror = "1.0.26"
 yansi = "0.5.0"

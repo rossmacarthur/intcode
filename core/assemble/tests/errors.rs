@@ -1,14 +1,16 @@
-use intcode_assemble::to_intcode;
+use intcode_assemble::{to_intcode, Error};
+use intcode_pretty::Pretty;
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
     yansi::Paint::disable();
+    let pretty = Pretty::new(asm);
     to_intcode(asm)
         .unwrap_err()
         .into_iter()
-        .map(|e| e.pretty(asm, "<input>"))
+        .map(|Error { msg, span }| pretty.fmt(msg, span))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -329,7 +331,7 @@ test: HLT
   --> <input>:2:1
    |
  2 | test: HLT
-   | ^^^^ label redefined
+   | ^^^^ label redefined here
 ";
     assert_eq!(assemble(asm), expected);
 }

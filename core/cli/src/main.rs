@@ -5,7 +5,9 @@ use std::process;
 use std::{fmt::Display, path::Path};
 
 use anyhow::Result;
+use assemble::Error;
 use clap::{AppSettings, Clap};
+use pretty::Pretty;
 use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]
@@ -46,8 +48,9 @@ fn assemble(input: &Path) -> Result<String> {
     let asm = fs::read_to_string(input)?;
     eprint("Assembling", input.display());
     assemble::to_intcode(&asm).map_err(|errors| {
-        for error in errors {
-            eprintln!("{}", error.pretty(&asm, input));
+        let p = Pretty::new(&asm);
+        for Error { msg, span } in errors {
+            eprintln!("{}", p.fmt(msg, span));
         }
         eprintln!(
             "{}{} could not assemble `{}`",

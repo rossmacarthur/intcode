@@ -137,6 +137,7 @@ dependencies = [
  "clap",
  "indexmap",
  "intcode-assemble",
+ "intcode-pretty",
  "intcode-run",
  "pretty_assertions",
  "thiserror",
@@ -149,8 +150,17 @@ version = "0.0.0"
 dependencies = [
  "dairy",
  "indexmap",
+ "intcode-pretty",
  "pretty_assertions",
  "thiserror",
+ "yansi",
+]
+
+[[package]]
+name = "intcode-pretty"
+version = "0.0.0"
+dependencies = [
+ "dairy",
  "unicode-width",
  "yansi",
 ]

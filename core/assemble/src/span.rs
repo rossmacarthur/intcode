@@ -42,6 +42,12 @@ impl Span {
     }
 }
 
+impl From<Span> for ops::Range<usize> {
+    fn from(span: Span) -> Self {
+        span.m..span.n
+    }
+}
+
 impl From<ops::Range<usize>> for Span {
     fn from(r: ops::Range<usize>) -> Self {
         Self {
