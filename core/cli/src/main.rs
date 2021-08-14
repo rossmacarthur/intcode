@@ -6,7 +6,7 @@ use std::{fmt::Display, path::Path};
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
-use peter::Stylize;
+use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]
 #[clap(
@@ -36,7 +36,7 @@ enum Opt {
 
 fn eprint(header: &str, message: impl Display) {
     if atty::is(atty::Stream::Stdout) {
-        eprintln!("{:>12} {}", header.bold().green(), message);
+        eprintln!("{:>12} {}", Paint::green(header).bold(), message);
     } else {
         eprintln!("{:>12} {}", header, message);
     }
@@ -51,8 +51,8 @@ fn assemble(input: &Path) -> Result<String> {
         }
         eprintln!(
             "{}{} could not assemble `{}`",
-            "error".bold().red(),
-            ":".bold(),
+            Paint::red("error").bold(),
+            Paint::default(":").bold(),
             input.display()
         );
         process::exit(1);
@@ -74,8 +74,8 @@ fn run(input: PathBuf, utf8: bool) -> Result<()> {
         Some(ext) => {
             eprintln!(
                 "{}{} unrecognized file extension `{}`",
-                "error".bold().red(),
-                ":".bold(),
+                Paint::red("error").bold(),
+                Paint::default(":").bold(),
                 ext
             );
             process::exit(1);
