@@ -5,6 +5,7 @@ use dairy::String;
 /// A label specified in a parameter.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Label<'i> {
+    Underscore,
     InstructionPointer,
     Fixed(&'i str),
 }
@@ -89,6 +90,7 @@ pub struct Program<'i> {
 impl<'i> Label<'i> {
     pub(crate) fn new(label: &'i str) -> Self {
         match label {
+            "_" => Self::Underscore,
             "ip" => Self::InstructionPointer,
             label => Self::Fixed(label),
         }

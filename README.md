@@ -33,10 +33,9 @@ Comments start with a semicolon `;`.
 
 There are two types of operands.
 
-- **Identifier**
+- **Label**
 
-  An identifier refers to an address in a program. For example: `end` in the
-  following program refers the address of the `HLT` instruction.
+  A label refers to an address in a program. For example: `end` in the following program refers the address of the `HLT` instruction.
   ```asm
       JZ #0, #end
   end:
@@ -185,20 +184,30 @@ introduced in Advent of Code.
   strings. Strings will be encoded as UTF-8. A label on a `DB` instruction will
   refer to the start of the data. For example the following specifies the string
   "Hello World!" with a newline.
-  ```
+  ```asm
   message:
       DB "Hello World!", 10
   ```
 
-### Dynamic labels
+### Special labels
 
-The `ip` label refers to the address of the next instruction. This can be used
-to dereference a pointer. Consider the following example where `ptr` refers to
-some address and we want to read a value into that address.
+- **`_`**
+
+  Refers to an undefined address. This should be used to indicate that the
+  address will be set at runtime.
+
+- **`ip`**
+
+  Refers to the address of the next instruction. This can be used to dereference
+  a pointer.
+
+Consider the following example where `ptr` refers to some address and we want to
+read a value into that address. `_` is used because the value of `ptr` will be
+filled as the parameter for the `IN` instruction by the `ADD` instruction.
 
 ```asm
 ADD ptr, #0, ip+1
-IN  -1
+IN  _
 HLT
 ```
 

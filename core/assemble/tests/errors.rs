@@ -242,13 +242,37 @@ fn parse_invalid_opcode() {
 }
 
 #[test]
-fn parse_reserved_label() {
+fn parse_reserved_label_underscore() {
+    let asm = "_: ADD x, y, z";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | _: ADD x, y, z
+   | ^ label is reserved to indicate a runtime value
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_reserved_label_ip() {
+    let asm = "ip: ADD x, y, z";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | ip: ADD x, y, z
+   | ^^ label is reserved to refer to the instruction pointer
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_reserved_label_rb() {
     let asm = "rb: ADD x, y, z";
     let expected = "
   --> <input>:1:1
    |
  1 | rb: ADD x, y, z
-   | ^^ label is reserved for the relative base
+   | ^^ label is reserved to refer to the relative base
 ";
     assert_eq!(assemble(asm), expected);
 }

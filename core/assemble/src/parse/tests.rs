@@ -97,7 +97,21 @@ fn eat_program_errors() {
         ("ADD #-a", 6..7, "expected a number, found an identifier"),
         ("ADD MUL", 4..7, "expected a parameter, found a mnemonic"),
         ("YUP", 0..3, "unknown operation mnemonic"),
-        ("rb: DB 0", 0..2, "label is reserved for the relative base"),
+        (
+            "_: DB 0",
+            0..1,
+            "label is reserved to indicate a runtime value",
+        ),
+        (
+            "ip: DB 0",
+            0..2,
+            "label is reserved to refer to the instruction pointer",
+        ),
+        (
+            "rb: DB 0",
+            0..2,
+            "label is reserved to refer to the relative base",
+        ),
         ("label: DB 0\nlabel: DB 0", 12..17, "label already used"),
     ];
     for (asm, span, msg) in tests {

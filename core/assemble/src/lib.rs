@@ -32,6 +32,7 @@ fn assemble(ast: Program) -> Vec<i64> {
         let mut param = |output: &mut Vec<_>, p, ip| -> i64 {
             let (mode, value) = match p {
                 Param::Number(m, value) => (m.into(), value),
+                Param::Label(m, Label::Underscore, offset) => (m.into(), offset),
                 Param::Label(m, Label::InstructionPointer, offset) => (m.into(), ip + offset),
                 Param::Label(m, Label::Fixed(label), offset) => {
                     labels.entry(label).or_default().refs.push(output.len());
@@ -74,6 +75,9 @@ fn assemble(ast: Program) -> Vec<i64> {
                 let ip = (output.len() + data.len()) as i64;
                 for d in data {
                     match d {
+                        RawParam::Label(Label::Underscore, offset) => {
+                            output.push(offset);
+                        }
                         RawParam::Label(Label::InstructionPointer, offset) => {
                             output.push(ip + offset);
                         }

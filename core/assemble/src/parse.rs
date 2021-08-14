@@ -29,7 +29,7 @@ enum Ident {
 
 impl Ident {
     fn new(s: &str) -> Self {
-        match s.chars().all(|c| matches!(c, '0'..='9'| 'A'..='Z' | '_')) {
+        match s.chars().all(|c| matches!(c, '0'..='9'| 'A'..='Z')) {
             false => Self::Label,
             true => Self::Mnemonic,
         }
@@ -306,8 +306,9 @@ impl<'i> Parser<'i> {
                 self.expect(Token::Colon)?;
                 let label = span.as_str(self.input);
                 if let Some(msg) = match label {
-                    "ip" => Some("label is reserved for the instruction pointer"),
-                    "rb" => Some("label is reserved for the relative base"),
+                    "_" => Some("label is reserved to indicate a runtime value"),
+                    "ip" => Some("label is reserved to refer to the instruction pointer"),
+                    "rb" => Some("label is reserved to refer to the relative base"),
                     label if !self.labels.insert(label) => Some("label already used"),
                     _ => None,
                 } {
