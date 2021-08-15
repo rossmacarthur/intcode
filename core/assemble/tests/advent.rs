@@ -1,6 +1,12 @@
-use intcode_assemble::to_intcode as assemble;
+use intcode_assemble::to_intcode;
 
 use pretty_assertions::assert_eq;
+
+#[track_caller]
+fn assemble(asm: &str) -> String {
+    let (intcode, _) = to_intcode(asm).unwrap();
+    intcode
+}
 
 #[test]
 fn advent_day2_example1() {
@@ -13,7 +19,7 @@ b: DB 40
 c: DB 50
 ";
     let expected = "1,9,10,3,2,3,11,0,99,30,40,50";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -23,7 +29,7 @@ MUL a, #3, 4
 a: DB 33
 ";
     let expected = "1002,4,3,4,33";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -37,7 +43,7 @@ a: DB -1
 b: DB 8
 ";
     let expected = "3,9,8,9,10,9,4,9,99,-1,8";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -49,7 +55,7 @@ OUT 3
 HLT
 ";
     let expected = "3,3,1108,-1,8,3,4,3,99";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -66,7 +72,7 @@ c: DB 1
 d: DB o
 ";
     let expected = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -80,7 +86,7 @@ HLT
 a: DB  1
 ";
     let expected = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -94,7 +100,7 @@ JZ  101, #0
 HLT
 ";
     let expected = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }
 
 #[test]
@@ -106,5 +112,5 @@ HLT
 x: DB 0
 ";
     let expected = "1102,34915192,34915192,7,4,7,99,0";
-    assert_eq!(assemble(asm).unwrap(), expected);
+    assert_eq!(assemble(asm), expected);
 }

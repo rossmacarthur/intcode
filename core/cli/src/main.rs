@@ -5,7 +5,7 @@ use std::process;
 use std::{fmt::Display, path::Path};
 
 use anyhow::Result;
-use assemble::Error;
+use assemble::{Error, Warning};
 use clap::{AppSettings, Clap};
 use pretty::Pretty;
 use yansi::Paint;
@@ -46,20 +46,30 @@ fn eprint(header: &str, message: impl Display) {
 
 fn assemble(input: &Path) -> Result<String> {
     let asm = fs::read_to_string(input)?;
+    let fmt = Pretty::new(&asm);
     eprint("Assembling", input.display());
-    assemble::to_intcode(&asm).map_err(|errors| {
-        let p = Pretty::new(&asm);
-        for Error { msg, span } in errors {
-            eprintln!("{}", p.fmt(msg, span));
-        }
-        eprintln!(
-            "{}{} could not assemble `{}`",
-            Paint::red("error").bold(),
-            Paint::default(":").bold(),
-            input.display()
-        );
-        process::exit(1);
-    })
+    assemble::to_intcode(&asm)
+        .map(|(output, warnings)| {
+            for Warning { msg, span } in warnings {
+                eprintln!("{}", fmt.warn(msg, span));
+            }
+            output
+        })
+        .map_err(|(errors, warnings)| {
+            for Warning { msg, span } in warnings {
+                eprintln!("{}", fmt.warn(msg, span));
+            }
+            for Error { msg, span } in errors {
+                eprintln!("{}", fmt.error(msg, span));
+            }
+            eprintln!(
+                "{}{} could not assemble `{}`",
+                Paint::red("error").bold(),
+                Paint::default(":").bold(),
+                input.display()
+            );
+            process::exit(1);
+        })
 }
 
 fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {

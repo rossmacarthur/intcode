@@ -19,6 +19,21 @@ pub struct Error {
     pub span: Span,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Warning {
+    pub msg: Cow<'static, str>,
+    pub span: Span,
+}
+
+impl Warning {
+    pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
+        Self {
+            span: span.into(),
+            msg: msg.into(),
+        }
+    }
+}
+
 impl Error {
     pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {

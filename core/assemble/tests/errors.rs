@@ -6,11 +6,11 @@ use pretty_assertions::assert_eq;
 #[track_caller]
 fn assemble(asm: &str) -> String {
     yansi::Paint::disable();
-    let pretty = Pretty::new(asm);
-    to_intcode(asm)
-        .unwrap_err()
+    let fmt = Pretty::new(asm);
+    let (errors, _) = to_intcode(asm).unwrap_err();
+    errors
         .into_iter()
-        .map(|Error { msg, span }| pretty.fmt(msg, span))
+        .map(|Error { msg, span }| fmt.error(msg, span))
         .collect::<Vec<_>>()
         .join("\n")
 }

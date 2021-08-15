@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use crate::ast::{Instr, Label, Param, Program, RawParam, Stmt};
 use crate::span::{Span, S};
 
-pub use crate::error::Error;
+pub use crate::error::{Error, Warning};
 
 #[derive(Debug, Default)]
 struct State {
@@ -49,9 +49,10 @@ fn insert_label<'a>(
     Ok(())
 }
 
-fn assemble(ast: Program) -> Result<Vec<i64>, Vec<Error>> {
+fn assemble(ast: Program) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
     let mut output = Vec::new();
     let mut errors = Vec::new();
+    let mut warnings = Vec::new();
     let mut labels = IndexMap::<&str, State>::new();
 
     for Stmt { label, instr } in ast.stmts {
@@ -138,16 +139,20 @@ fn assemble(ast: Program) -> Result<Vec<i64>, Vec<Error>> {
         }
     }
 
-    for (_, State { defs, refs }) in labels {
+    for (label, State { defs, refs }) in labels {
         match defs.as_slice() {
             &[] => {
                 for (_, span) in refs {
                     errors.push(Error::new("undefined label", span));
                 }
             }
-            &[(address, _)] => {
-                for (r, _) in refs {
-                    output[r] += address as i64;
+            &[(address, span)] => {
+                if refs.is_empty() && !label.starts_with('_') {
+                    warnings.push(Warning::new("label is never used", span))
+                } else {
+                    for (r, _) in refs {
+                        output[r] += address as i64;
+                    }
                 }
             }
             _ => {
@@ -163,20 +168,23 @@ fn assemble(ast: Program) -> Result<Vec<i64>, Vec<Error>> {
         }
     }
     match errors.is_empty() {
-        true => Ok(output),
-        false => Err(errors),
+        true => Ok((output, warnings)),
+        false => Err((errors, warnings)),
     }
 }
 
 /// Assemble the program as intcode.
-pub fn to_intcode(input: &str) -> Result<String, Vec<Error>> {
-    parse::program(input).and_then(|prog| {
-        assemble(prog).map(|output| {
-            output
-                .into_iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
+pub fn to_intcode(input: &str) -> Result<(String, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
+    parse::program(input)
+        .map_err(|errs| (errs, Vec::new()))
+        .and_then(|prog| {
+            assemble(prog).map(|(output, warnings)| {
+                let output = output
+                    .into_iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                (output, warnings)
+            })
         })
-    })
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use dairy::Cow;
 use unicode_width::UnicodeWidthStr;
-use yansi::Paint;
+use yansi::{Color, Paint};
 
 #[derive(Debug)]
 pub struct Pretty<'i> {
@@ -37,7 +37,12 @@ impl<'i> Pretty<'i> {
         self
     }
 
-    pub fn fmt<'a>(&self, msg: impl Into<Cow<'a, str>>, span: impl Into<Range<usize>>) -> String {
+    fn with_color<'a>(
+        &self,
+        color: Color,
+        msg: impl Into<Cow<'a, str>>,
+        span: impl Into<Range<usize>>,
+    ) -> String {
         let msg = msg.into();
         let span = span.into();
 
@@ -47,7 +52,7 @@ impl<'i> Pretty<'i> {
         let code = lines.get(line).unwrap_or_else(|| lines.last().unwrap());
         let error = format!(
             "{underline:>pad$} {msg}",
-            underline = Paint::red("^".repeat(width)).bold(),
+            underline = Paint::new("^".repeat(width)).fg(color).bold(),
             msg = Paint::default(msg).bold(),
             pad = col + width,
         );
@@ -70,5 +75,13 @@ impl<'i> Pretty<'i> {
             code = code,
             error = error,
         )
+    }
+
+    pub fn error<'a>(&self, msg: impl Into<Cow<'a, str>>, span: impl Into<Range<usize>>) -> String {
+        self.with_color(Color::Red, msg, span)
+    }
+
+    pub fn warn<'a>(&self, msg: impl Into<Cow<'a, str>>, span: impl Into<Range<usize>>) -> String {
+        self.with_color(Color::Yellow, msg, span)
     }
 }
