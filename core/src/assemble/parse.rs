@@ -10,9 +10,9 @@ use std::result;
 
 use self::integer::Sign;
 use self::unpack::TryUnpack;
-use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
+use crate::assemble::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
+use crate::assemble::lex::{Token, Tokens};
 use crate::error::{Error, Result};
-use crate::lex::{Token, Tokens};
 use crate::span::{Span, S};
 
 struct Parser<'i> {

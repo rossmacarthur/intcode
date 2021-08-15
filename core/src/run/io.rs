@@ -12,12 +12,10 @@ pub struct Basic;
 pub struct Utf8;
 
 impl Io for Basic {
-    fn input(&self, i: impl BufRead) -> Result<Vec<i64>> {
-        let mut values = Vec::new();
-        for line in i.lines() {
-            values.extend(parse_program(&line?));
-        }
-        Ok(values)
+    fn input(&self, mut i: impl BufRead) -> Result<Vec<i64>> {
+        let mut line = String::new();
+        i.read_line(&mut line)?;
+        Ok(parse_program(&line))
     }
 
     fn output(&self, mut o: impl Write, value: i64) -> Result<()> {
@@ -26,12 +24,10 @@ impl Io for Basic {
 }
 
 impl Io for Utf8 {
-    fn input(&self, i: impl BufRead) -> Result<Vec<i64>> {
-        let mut values = Vec::new();
-        for line in i.lines() {
-            values.extend(Vec::from(line?).into_iter().map(i64::from));
-        }
-        Ok(values)
+    fn input(&self, mut i: impl BufRead) -> Result<Vec<i64>> {
+        let mut line = String::new();
+        i.read_line(&mut line)?;
+        Ok(Vec::from(line).into_iter().map(i64::from).collect())
     }
 
     fn output(&self, mut o: impl Write, value: i64) -> Result<()> {

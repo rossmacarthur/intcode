@@ -1,5 +1,4 @@
-use intcode_assemble::{to_intcode, Error};
-use intcode_pretty::Pretty;
+use intcode_core::{assemble, Error, Pretty};
 
 use pretty_assertions::assert_eq;
 
@@ -7,7 +6,7 @@ use pretty_assertions::assert_eq;
 fn assemble(asm: &str) -> String {
     yansi::Paint::disable();
     let fmt = Pretty::new(asm);
-    let (errors, _) = to_intcode(asm).unwrap_err();
+    let (errors, _) = assemble::to_intcode(asm).unwrap_err();
     errors
         .into_iter()
         .map(|Error { msg, span }| fmt.error(msg, span))

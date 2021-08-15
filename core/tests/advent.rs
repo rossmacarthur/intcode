@@ -1,10 +1,10 @@
-use intcode_assemble::to_intcode;
+use intcode_core::assemble;
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
-    let (intcode, _) = to_intcode(asm).unwrap();
+    let (intcode, _) = assemble::to_intcode(asm).unwrap();
     intcode
 }
 

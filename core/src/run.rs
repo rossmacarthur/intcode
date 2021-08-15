@@ -150,6 +150,7 @@ impl Computer {
 
 fn run(input: &str, io: impl io::Io) -> Result<()> {
     let mut c = Computer::new(parse_program(input));
+    let mut stdin = io::BufReader::new(io::stdin());
     let mut stdout = io::BufWriter::new(io::stdout());
     loop {
         match c.next()? {
@@ -159,7 +160,7 @@ fn run(input: &str, io: impl io::Io) -> Result<()> {
             }
             State::Waiting => {
                 stdout.flush()?;
-                c.input.extend(io.input(io::BufReader::new(io::stdin()))?);
+                c.input.extend(io.input(&mut stdin)?);
             }
             State::Complete => {
                 stdout.flush()?;

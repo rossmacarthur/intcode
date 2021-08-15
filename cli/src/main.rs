@@ -5,10 +5,10 @@ use std::process;
 use std::{fmt::Display, path::Path};
 
 use anyhow::Result;
-use assemble::{Error, Warning};
 use clap::{AppSettings, Clap};
-use pretty::Pretty;
 use yansi::Paint;
+
+use core::{Error, Pretty, Warning};
 
 #[derive(Debug, Clone, Clap)]
 #[clap(
@@ -46,9 +46,9 @@ fn eprint(header: &str, message: impl Display) {
 
 fn assemble(input: &Path) -> Result<String> {
     let asm = fs::read_to_string(input)?;
-    let fmt = Pretty::new(&asm);
+    let fmt = Pretty::new(&asm).filename(input);
     eprint("Assembling", input.display());
-    assemble::to_intcode(&asm)
+    core::assemble::to_intcode(&asm)
         .map(|(output, warnings)| {
             for Warning { msg, span } in warnings {
                 eprintln!("{}", fmt.warn(msg, span));
@@ -96,9 +96,9 @@ fn run(input: PathBuf, utf8: bool) -> Result<()> {
     };
     eprint("Running", input.display());
     if utf8 {
-        run::intcode_utf8(&intcode)?;
+        core::run::intcode_utf8(&intcode)?;
     } else {
-        run::intcode(&intcode)?;
+        core::run::intcode(&intcode)?;
     }
     Ok(())
 }

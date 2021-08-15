@@ -1,15 +1,12 @@
 pub mod ast;
-mod error;
 mod lex;
 mod parse;
-mod span;
 
 use indexmap::IndexMap;
 
-use crate::ast::{Instr, Label, Param, Program, RawParam, Stmt};
+use self::ast::{Instr, Label, Param, Program, RawParam, Stmt};
+use crate::error::{Error, Warning};
 use crate::span::{Span, S};
-
-pub use crate::error::{Error, Warning};
 
 #[derive(Debug, Default)]
 struct State {
