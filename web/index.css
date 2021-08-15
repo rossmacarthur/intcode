@@ -1,0 +1,67 @@
+*,
+*:after,
+*:before {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.container {
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding-bottom: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.auto {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+#header {
+  padding: 1rem 0;
+}
+
+#header > button {
+  border-radius: 4px;
+  border: 4px transparent;
+  background-color: #5d5d5d;
+  color: white;
+  cursor: pointer;
+  font-family: "Source Code Pro", monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  min-width: 5rem;
+  padding: 0.5rem 0;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+#header > button:hover {
+  background-color: #2d2d2d;
+}
+
+#main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-column-gap: 1rem;
+}
+
+#editor,
+#right {
+  border: 4px solid darkgray;
+  border-radius: 4px;
+  font-family: "Source Code Pro", monospace;
+  font-size: 1rem;
+}
+
+#right {
+  background-color: lightgray;
+  color: black;
+  padding: 0 0.5rem;
+  overflow: scroll;
+}
