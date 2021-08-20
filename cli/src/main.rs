@@ -1,5 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 use std::process;
 use std::{fmt::Display, path::Path};
@@ -32,7 +33,7 @@ enum Opt {
         input: PathBuf,
 
         #[clap(long)]
-        utf8: bool,
+        basic: bool,
     },
 }
 
@@ -80,7 +81,7 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn run(input: PathBuf, utf8: bool) -> Result<()> {
+fn run(input: PathBuf, basic: bool) -> Result<()> {
     let intcode = match input.extension().and_then(OsStr::to_str) {
         Some("s") => assemble(&input)?,
         Some("intcode") | None => fs::read_to_string(&input)?,
@@ -95,10 +96,11 @@ fn run(input: PathBuf, utf8: bool) -> Result<()> {
         }
     };
     eprint("Running", input.display());
-    if utf8 {
-        core::run::intcode_utf8(&intcode)?;
+    let r = core::run::Runner::new(io::stdin(), io::stdout());
+    if basic {
+        r.run_basic(&intcode)?;
     } else {
-        core::run::intcode(&intcode)?;
+        r.run_utf8(&intcode)?;
     }
     Ok(())
 }
@@ -106,6 +108,6 @@ fn run(input: PathBuf, utf8: bool) -> Result<()> {
 fn main() -> Result<()> {
     match Opt::parse() {
         Opt::Build { input, output } => build(input, output),
-        Opt::Run { input, utf8 } => run(input, utf8),
+        Opt::Run { input, basic } => run(input, basic),
     }
 }

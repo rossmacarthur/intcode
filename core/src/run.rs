@@ -148,34 +148,43 @@ impl Computer {
     }
 }
 
-fn run(input: &str, io: impl io::Io) -> Result<()> {
-    let mut c = Computer::new(parse_program(input));
-    let mut stdin = io::BufReader::new(io::stdin());
-    let mut stdout = io::BufWriter::new(io::stdout());
-    loop {
-        match c.next()? {
-            State::Yielded(value) => {
-                io.output(&mut stdout, value)?;
-                stdout.flush()?;
-            }
-            State::Waiting => {
-                stdout.flush()?;
-                c.input.extend(io.input(&mut stdin)?);
-            }
-            State::Complete => {
-                stdout.flush()?;
-                break Ok(());
+pub struct Runner<I, O: Write> {
+    input: io::BufReader<I>,
+    output: io::BufWriter<O>,
+}
+
+impl<I: Read, O: Write> Runner<I, O> {
+    pub fn new(i: I, o: O) -> Self {
+        Self {
+            input: io::BufReader::new(i),
+            output: io::BufWriter::new(o),
+        }
+    }
+
+    fn run<T: io::Kind>(mut self, intcode: &str) -> Result<()> {
+        let mut c = Computer::new(parse_program(intcode));
+        loop {
+            match c.next()? {
+                State::Yielded(value) => {
+                    T::output(&mut self.output, value)?;
+                }
+                State::Waiting => {
+                    self.output.flush()?;
+                    c.input.extend(T::input(&mut self.input)?);
+                }
+                State::Complete => {
+                    self.output.flush()?;
+                    break Ok(());
+                }
             }
         }
     }
-}
 
-/// Run the provided intcode program.
-pub fn intcode(input: &str) -> Result<()> {
-    run(input, io::Basic)
-}
+    pub fn run_basic(self, intcode: &str) -> Result<()> {
+        self.run::<io::Basic>(intcode)
+    }
 
-/// Run the provided intcode program.
-pub fn intcode_utf8(input: &str) -> Result<()> {
-    run(input, io::Utf8)
+    pub fn run_utf8(self, intcode: &str) -> Result<()> {
+        self.run::<io::Utf8>(intcode)
+    }
 }
