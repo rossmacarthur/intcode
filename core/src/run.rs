@@ -11,11 +11,7 @@ use thiserror::Error;
 
 type Result<T> = result::Result<T, Error>;
 
-fn cast(num: i64) -> usize {
-    usize::try_from(num).unwrap()
-}
-
-fn parse_program(input: &str) -> Vec<i64> {
+pub fn parse_program(input: &str) -> Vec<i64> {
     input
         .trim()
         .split(',')
@@ -36,7 +32,7 @@ pub enum Error {
 
 /// The state of the computer.
 #[derive(Debug)]
-enum State {
+pub enum State {
     /// An output.
     Yielded(i64),
     /// Waiting for input.
@@ -46,21 +42,29 @@ enum State {
 }
 
 #[derive(Debug)]
-struct Computer {
+pub struct Computer {
     mem: Vec<i64>,
     ptr: usize,
     relative_base: i64,
     input: VecDeque<i64>,
 }
 
+fn cast(num: i64) -> usize {
+    usize::try_from(num).unwrap()
+}
+
 impl Computer {
-    fn new(program: Vec<i64>) -> Self {
+    pub fn new(program: Vec<i64>) -> Self {
         Self {
             mem: program,
             ptr: 0,
             relative_base: 0,
             input: VecDeque::new(),
         }
+    }
+
+    pub fn feed(&mut self, iter: impl Iterator<Item = i64>) {
+        self.input.extend(iter)
     }
 
     fn mem_get(&self, addr: usize) -> i64 {
@@ -91,7 +95,7 @@ impl Computer {
         self.param_ptr(i).map(move |ptr| self.mem_get_mut(ptr))
     }
 
-    fn next(&mut self) -> Result<State> {
+    pub fn next(&mut self) -> Result<State> {
         loop {
             match self.mem_get(self.ptr) % 100 {
                 1 => {
@@ -161,8 +165,8 @@ impl<I: Read, O: Write> Runner<I, O> {
         }
     }
 
-    fn run<T: io::Kind>(mut self, intcode: &str) -> Result<()> {
-        let mut c = Computer::new(parse_program(intcode));
+    fn run<T: io::Kind>(mut self, intcode: Vec<i64>) -> Result<()> {
+        let mut c = Computer::new(intcode);
         loop {
             match c.next()? {
                 State::Yielded(value) => {
@@ -180,11 +184,11 @@ impl<I: Read, O: Write> Runner<I, O> {
         }
     }
 
-    pub fn run_basic(self, intcode: &str) -> Result<()> {
+    pub fn run_basic(self, intcode: Vec<i64>) -> Result<()> {
         self.run::<io::Basic>(intcode)
     }
 
-    pub fn run_utf8(self, intcode: &str) -> Result<()> {
+    pub fn run_utf8(self, intcode: Vec<i64>) -> Result<()> {
         self.run::<io::Utf8>(intcode)
     }
 }

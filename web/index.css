@@ -24,25 +24,8 @@
 }
 
 #header {
+  text-align: center;
   padding: 1rem 0;
-}
-
-#header > button {
-  border-radius: 4px;
-  border: 4px transparent;
-  background-color: #5d5d5d;
-  color: white;
-  cursor: pointer;
-  font-family: "Source Code Pro", monospace;
-  font-size: 1rem;
-  font-weight: bold;
-  min-width: 5rem;
-  padding: 0.5rem 0;
-  text-transform: uppercase;
-  transition: all 0.3s ease;
-}
-#header > button:hover {
-  background-color: #2d2d2d;
 }
 
 #main {
@@ -51,17 +34,89 @@
   grid-column-gap: 1rem;
 }
 
-#editor,
+#left,
 #right {
+  background-color: #2d2d2d;
+  color: #cccccc;
   border: 4px solid darkgray;
   border-radius: 4px;
+  overflow: scroll;
+}
+#right {
+  padding: 0.25rem 0.5rem;
+}
+
+pre,
+#editor,
+#right {
   font-family: "Source Code Pro", monospace;
   font-size: 1rem;
 }
 
-#right {
-  background-color: lightgray;
-  color: black;
-  padding: 0 0.5rem;
-  overflow: scroll;
+input {
+  display: block;
+  background-color: #393939;
+  color: #ccc;
+  border: none;
+  font-family: "Source Code Pro", monospace;
+  font-size: 1rem;
+  width: 100%;
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+  border: none;
+  outline: none;
+}
+input.disabled {
+  display: none;
+}
+
+button {
+  border-radius: 4px;
+  border: 4px transparent;
+  background-color: #6699cc;
+  cursor: pointer;
+  font-size: 1rem;
+  min-width: 7rem;
+  height: 2.5rem;
+  padding: 0.5rem 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+button > span {
+  color: white;
+  font-family: "Source Code Pro", monospace;
+}
+button > span.x {
+  display: none;
+}
+button:hover {
+  background-color: #cc99cc;
+}
+button > #loader {
+  border: 0.125rem solid white;
+  border-top: 0.125rem solid transparent;
+  border-radius: 50%;
+  display: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: auto;
+  animation: spin 0.5s linear infinite;
+}
+button.disabled > #loader {
+  display: block;
+}
+button.disabled:hover > #loader {
+  display: none;
+}
+button.disabled > span {
+  display: none;
+}
+button.disabled:hover > span.x {
+  display: block;
+}
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
 }

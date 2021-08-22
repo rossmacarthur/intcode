@@ -1,14 +1,44 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <title>Intcode Playground</title>
-    <link data-trunk rel="css" href="index.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="index.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"
+        integrity="sha512-GZ1RIgZaSc8rnco/8CXfRdCpDxRCphenIiZ2ztLy3XQfCbQUSCuk8IudvNHxkRA3oUg6q0qejgN/qqyG1duv5Q=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/theme-tomorrow_night_eighties.min.js"
+        integrity="sha512-ZpoDdz3A/zV2aKTjH8fcyDKhg+zOuu423OkuJ7SvK1jMRZUSkTtH1YQQS10pqNvi9CYT2jmtOCxuNQW9TEtHdw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module" src="./index.js"></script>
 </head>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.min.js" integrity="sha512-GoORoNnxst42zE3rYPj4bNBm0Q6ZRXKNH2D9nEmNvVF/z24ywVnijAWVi/09iBiVDQVf3UlZHpzhAJIdd9BXqw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-assembly_x86.min.js" integrity="sha512-b6Tco31NAg8COzTcHC+gZ0sLsARF03siGRR0gJ9Efz5+jpbmjK8iM6uubNV0St8NsFhml4LSL25liThgg5mfaw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/theme-tomorrow_night_eighties.min.js" integrity="sha512-ZpoDdz3A/zV2aKTjH8fcyDKhg+zOuu423OkuJ7SvK1jMRZUSkTtH1YQQS10pqNvi9CYT2jmtOCxuNQW9TEtHdw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<body>
+    <div class="container">
+        <div id="header">
+            <button id="run">
+                <span>Run</span>
+                <span class="x">Cancel</span>
+                <div id="loader"></div>
+            </button>
+        </div>
+
+        <div id="main" class="auto">
+            <div id="left" class="auto">
+                <div id="editor" class="auto"></div>
+            </div>
+            <div id="right" class="auto">
+                <div id="terminal">
+                    Hit "Run" to compile and run your program...
+                </div>
+                <input id="input" class="disabled"/>
+            </div>
+        </div>
+    </div>
+</body>
+
 </html>

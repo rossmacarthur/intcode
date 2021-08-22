@@ -45,7 +45,7 @@ fn eprint(header: &str, message: impl Display) {
     }
 }
 
-fn assemble(input: &Path) -> Result<String> {
+fn assemble(input: &Path) -> Result<Vec<i64>> {
     let asm = fs::read_to_string(input)?;
     let fmt = Pretty::new(&asm).filename(input);
     eprint("Assembling", input.display());
@@ -76,7 +76,14 @@ fn assemble(input: &Path) -> Result<String> {
 fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
     let output = output.unwrap_or_else(|| input.with_extension("intcode"));
     let intcode = assemble(&input)?;
-    fs::write(&output, intcode)?;
+    fs::write(
+        &output,
+        intcode
+            .into_iter()
+            .map(|d| d.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    )?;
     eprint("Finished", output.display());
     Ok(())
 }
@@ -84,7 +91,7 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
 fn run(input: PathBuf, basic: bool) -> Result<()> {
     let intcode = match input.extension().and_then(OsStr::to_str) {
         Some("s") => assemble(&input)?,
-        Some("intcode") | None => fs::read_to_string(&input)?,
+        Some("intcode") | None => core::run::parse_program(&fs::read_to_string(&input)?),
         Some(ext) => {
             eprintln!(
                 "{}{} unrecognized file extension `{}`",
@@ -98,9 +105,9 @@ fn run(input: PathBuf, basic: bool) -> Result<()> {
     eprint("Running", input.display());
     let r = core::run::Runner::new(io::stdin(), io::stdout());
     if basic {
-        r.run_basic(&intcode)?;
+        r.run_basic(intcode)?;
     } else {
-        r.run_utf8(&intcode)?;
+        r.run_utf8(intcode)?;
     }
     Ok(())
 }

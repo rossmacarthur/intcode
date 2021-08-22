@@ -1,1 +1,5 @@
+/.cache
+/.parcel-cache
 /dist
+/wasm
+/node_modules

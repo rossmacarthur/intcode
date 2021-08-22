@@ -171,17 +171,8 @@ fn assemble(ast: Program) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<W
 }
 
 /// Assemble the program as intcode.
-pub fn to_intcode(input: &str) -> Result<(String, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
+pub fn to_intcode(input: &str) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
     parse::program(input)
         .map_err(|errs| (errs, Vec::new()))
-        .and_then(|prog| {
-            assemble(prog).map(|(output, warnings)| {
-                let output = output
-                    .into_iter()
-                    .map(|d| d.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",");
-                (output, warnings)
-            })
-        })
+        .and_then(assemble)
 }

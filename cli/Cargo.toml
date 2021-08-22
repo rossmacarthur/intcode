@@ -9,7 +9,8 @@ default-run = "intcode"
 [dependencies]
 anyhow = "1.0.42"
 atty = "0.2.14"
-clap = "3.0.0-beta.2"
+clap_derive = "=3.0.0-beta.2"
+clap = "=3.0.0-beta.2"
 core = { package = "intcode-core", path = "../core" }
 indexmap = "1.7.0"
 thiserror = "1.0.26"
