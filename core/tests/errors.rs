@@ -75,6 +75,102 @@ fn parse_unexpected_token() {
 }
 
 #[test]
+fn parse_unexpected_base_2_integer() {
+    let asm = "0b10011";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0b10011
+   | ^^^^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_2_integer_underscore() {
+    let asm = "0b1_0011";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0b1_0011
+   | ^^^^^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_8_integer() {
+    let asm = "0o23";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0o23
+   | ^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_8_integer_underscore() {
+    let asm = "0o_2_3_";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0o_2_3_
+   | ^^^^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_10_integer() {
+    let asm = "19";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 19
+   | ^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_10_integer_underscore() {
+    let asm = "1_9_";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 1_9_
+   | ^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_16_integer() {
+    let asm = "0x13";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0x13
+   | ^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_base_16_integer_underscore() {
+    let asm = "0x_13_";
+    let expected = "
+  --> <input>:1:1
+   |
+ 1 | 0x_13_
+   | ^^^^^^ expected an identifier, found a number
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
 fn parse_invalid_base_2_integer() {
     let asm = "DB 0b021";
     let expected = "
@@ -119,6 +215,54 @@ fn parse_invalid_integer_overflow() {
  1 | DB 0xFFFFFFFFFFFFFFFF
    |    ^^^^^^^^^^^^^^^^^^ base 16 literal out of range for 64-bit integer
 ";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_string() {
+    let asm = r#""Hello World!""#;
+    let expected = r#"
+  --> <input>:1:1
+   |
+ 1 | "Hello World!"
+   | ^^^^^^^^^^^^^^ expected an identifier, found a string
+"#;
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_string_newline() {
+    let asm = r#""Hello World!\n""#;
+    let expected = r#"
+  --> <input>:1:1
+   |
+ 1 | "Hello World!\n"
+   | ^^^^^^^^^^^^^^^^ expected an identifier, found a string
+"#;
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_string_emoji() {
+    let asm = r#""😎""#;
+    let expected = r#"
+  --> <input>:1:1
+   |
+ 1 | "😎"
+   | ^^^^ expected an identifier, found a string
+"#;
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_unexpected_string_emoji_escape() {
+    let asm = r#""😎\t""#;
+    let expected = r#"
+  --> <input>:1:1
+   |
+ 1 | "😎\t"
+   | ^^^^^^ expected an identifier, found a string
+"#;
     assert_eq!(assemble(asm), expected);
 }
 

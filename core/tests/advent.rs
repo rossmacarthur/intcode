@@ -6,6 +6,10 @@ use pretty_assertions::assert_eq;
 fn assemble(asm: &str) -> String {
     let (intcode, _) = assemble::to_intcode(asm).unwrap();
     intcode
+        .into_iter()
+        .map(|d| d.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[test]

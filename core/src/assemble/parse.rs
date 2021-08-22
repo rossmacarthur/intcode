@@ -2,8 +2,6 @@
 
 mod integer;
 mod string;
-#[cfg(test)]
-mod tests;
 mod unpack;
 
 use std::result;

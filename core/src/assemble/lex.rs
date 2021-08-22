@@ -1,8 +1,5 @@
 //! Tokenize the input.
 
-#[cfg(test)]
-mod tests;
-
 use std::ops;
 use std::str;
 
