@@ -9,16 +9,16 @@ let input = document.getElementById("input");
 function feed(text) {
     try {
         let result = next(text);
-        terminal.innerHTML += "<pre>" + result.output + "</pre>";
+        terminal.innerHTML += "<log class='output'>" + result.output + "</log>";
         if (result.state == "Complete") {
-            terminal.innerHTML += "<pre>Done!</pre>";
+            terminal.innerHTML += "<log>Done!</log>";
             reset();
         } else {
             input.classList.remove("disabled");
             input.focus();
         }
     } catch (err) {
-        terminal.innerHTML += "<pre>Error: " + err + "</pre>";
+        terminal.innerHTML += "<log class='output'><span class='hl-error'>error</span>: " + err + "</log>";
         reset();
     }
 }
@@ -31,7 +31,7 @@ function reset() {
 }
 
 function cancel() {
-    terminal.innerHTML += "<pre>Canceled!</pre>";
+    terminal.innerHTML += "<log>Canceled!</log>";
     reset();
 }
 
@@ -39,11 +39,14 @@ function run() {
     button.onclick = cancel;
     button.classList.add("disabled");
     let result = assemble(editor.getValue());
-    terminal.innerHTML = "<pre>" + result.output + "</pre>";
     if (result.state == "Complete") {
+        terminal.innerHTML = "<log>Failed to compile program.</log>"
+        terminal.innerHTML += "<log class='output'>" + result.output + "</log>";
         reset();
     } else {
-        terminal.innerHTML += "<pre>Executing program...</pre>"
+        terminal.innerHTML = "<log>Successfully compiled program.</log>"
+        terminal.innerHTML += "<log class='output'>" + result.output + "</log>";
+        terminal.innerHTML += "<log>Executing program...</log>"
         feed(null);
     }
 }

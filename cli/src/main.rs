@@ -1,3 +1,5 @@
+mod fmt;
+
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -8,8 +10,6 @@ use std::{fmt::Display, path::Path};
 use anyhow::Result;
 use clap::{AppSettings, Clap};
 use yansi::Paint;
-
-use core::{Error, Pretty, Warning};
 
 #[derive(Debug, Clone, Clap)]
 #[clap(
@@ -47,21 +47,21 @@ fn eprint(header: &str, message: impl Display) {
 
 fn assemble(input: &Path) -> Result<Vec<i64>> {
     let asm = fs::read_to_string(input)?;
-    let fmt = Pretty::new(&asm).filename(input);
+    let fmt = fmt::Ansi::new(&asm, input);
     eprint("Assembling", input.display());
-    core::assemble::to_intcode(&asm)
+    intcode::assemble::to_intcode(&asm)
         .map(|(output, warnings)| {
-            for Warning { msg, span } in warnings {
-                eprintln!("{}", fmt.warn(msg, span));
+            for warning in warnings {
+                eprintln!("{}", fmt.warning(&warning));
             }
             output
         })
         .map_err(|(errors, warnings)| {
-            for Warning { msg, span } in warnings {
-                eprintln!("{}", fmt.warn(msg, span));
+            for warning in warnings {
+                eprintln!("{}", fmt.warning(&warning));
             }
-            for Error { msg, span } in errors {
-                eprintln!("{}", fmt.error(msg, span));
+            for error in errors {
+                eprintln!("{}", fmt.error(&error));
             }
             eprintln!(
                 "{}{} could not assemble `{}`",
@@ -91,7 +91,7 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
 fn run(input: PathBuf, basic: bool) -> Result<()> {
     let intcode = match input.extension().and_then(OsStr::to_str) {
         Some("s") => assemble(&input)?,
-        Some("intcode") | None => core::run::parse_program(&fs::read_to_string(&input)?),
+        Some("intcode") | None => intcode::run::parse_program(&fs::read_to_string(&input)?),
         Some(ext) => {
             eprintln!(
                 "{}{} unrecognized file extension `{}`",
@@ -103,7 +103,7 @@ fn run(input: PathBuf, basic: bool) -> Result<()> {
         }
     };
     eprint("Running", input.display());
-    let r = core::run::Runner::new(io::stdin(), io::stdout());
+    let r = intcode::run::Runner::new(io::stdin(), io::stdout());
     if basic {
         r.run_basic(intcode)?;
     } else {

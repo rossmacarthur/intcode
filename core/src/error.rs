@@ -10,8 +10,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// A parse error.
 ///
 /// Depending on the context, This can be an unexpected character, token, or
-/// value. The span specifies what will be underlined in the error message. The
-/// message is what will be displayed in the formatted output.
+/// value. The message is what will be displayed in the formatted output. The
+/// span specifies what will be underlined in the formatted output.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{msg}")]
 pub struct Error {
@@ -25,7 +25,7 @@ pub struct Warning {
     pub span: Span,
 }
 
-impl Warning {
+impl Error {
     pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
@@ -34,7 +34,7 @@ impl Warning {
     }
 }
 
-impl Error {
+impl Warning {
     pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),

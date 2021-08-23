@@ -1,3 +1,5 @@
+mod fmt;
+
 use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::panic;
@@ -8,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use intcode::run;
-use intcode::{Error, Warning};
 
 static COMPUTER: Lazy<Mutex<Option<run::Computer>>> = Lazy::new(Default::default);
 
@@ -36,12 +37,12 @@ pub fn init() {
 
 #[wasm_bindgen]
 pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
-    let p = intcode::Pretty::new(&asm).filename("&lt;input&gt;");
+    let opts = fmt::Html::new(&asm);
     let output = match intcode::assemble::to_intcode(&asm) {
         Ok((intcode, warnings)) => {
-            let mut output = String::from("Successfully compiled program.\n");
-            for Warning { msg, span } in warnings {
-                output.push_str(&p.warn(msg, span));
+            let mut output = String::new();
+            for warning in warnings {
+                output.push_str(&opts.warning(&warning));
                 output.push('\n');
             }
             *COMPUTER.lock().unwrap() = Some(run::Computer::new(intcode));
@@ -51,13 +52,13 @@ pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
             }
         }
         Err((errors, warnings)) => {
-            let mut output = String::from("Failed to compile program.\n");
-            for Warning { msg, span } in warnings {
-                output.push_str(&p.warn(msg, span));
+            let mut output = String::new();
+            for warning in warnings {
+                output.push_str(&opts.warning(&warning));
                 output.push('\n');
             }
-            for Error { msg, span } in errors {
-                output.push_str(&p.error(msg, span));
+            for error in errors {
+                output.push_str(&opts.error(&error));
                 output.push('\n');
             }
             Output {

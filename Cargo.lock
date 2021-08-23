@@ -180,7 +180,6 @@ dependencies = [
  "pretty_assertions",
  "thiserror",
  "unicode-width",
- "yansi",
 ]
 
 [[package]]

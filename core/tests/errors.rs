@@ -1,16 +1,16 @@
-use intcode_core::{assemble, Error, Pretty};
+use intcode_core::assemble;
+use intcode_core::fmt;
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
-    yansi::Paint::disable();
-    let fmt = Pretty::new(asm);
     let (errors, _) = assemble::to_intcode(asm).unwrap_err();
+    let fmt = fmt::Plain::new(asm);
     errors
-        .into_iter()
-        .map(|Error { msg, span }| fmt.error(msg, span))
-        .collect::<Vec<_>>()
+        .iter()
+        .map(|e| fmt.error(e))
+        .collect::<Vec<String>>()
         .join("\n")
 }
 

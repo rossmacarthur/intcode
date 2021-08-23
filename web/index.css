@@ -53,6 +53,30 @@ pre,
   font-size: 1rem;
 }
 
+log {
+  display: block;
+  color: #6699cc;
+}
+log.output {
+  color: #c5c8c6;
+}
+
+.hl-white {
+  color: #c5c8c6;
+}
+.hl-gray {
+  color: #969896;
+}
+.hl-blue {
+  color: #6699cc;
+}
+.hl-error {
+  color: #f2777a;
+}
+.hl-warning {
+  color: #f0c674;
+}
+
 input {
   display: block;
   background-color: #393939;
