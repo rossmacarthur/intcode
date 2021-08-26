@@ -1,5 +1,6 @@
 import init, { assemble, next } from './wasm/intcode_wasm.js';
-import hello from 'bundle-text:../examples/hello-world.s'
+import hello from 'bundle-text:../examples/hello-world.s';
+import { Mode } from './syntax.js';
 
 let editor = ace.edit("editor");
 let terminal = document.getElementById("terminal");
@@ -54,7 +55,7 @@ function run() {
 async function main() {
     await init();
     editor.setTheme("ace/theme/tomorrow_night_eighties");
-    editor.session.setMode("ace/mode/assembly_x86");
+    editor.session.setMode(new Mode());
     editor.session.setValue(hello);
     button.onclick = run;
     input.addEventListener("keypress", (e) => {
