@@ -6,22 +6,35 @@ use std::panic;
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use intcode::run;
 
 static COMPUTER: Lazy<Mutex<Option<run::Computer>>> = Lazy::new(Default::default);
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum State {
+#[derive(Debug, Serialize)]
+pub enum AssembleState {
+    Running,
+    Failed,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AssembleOutput {
+    pub state: AssembleState,
+    pub output: String,
+    pub intcode: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub enum NextState {
     Waiting,
     Complete,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Output {
-    pub state: State,
+#[derive(Debug, Serialize)]
+pub struct NextOutput {
+    pub state: NextState,
     pub output: String,
 }
 
@@ -45,10 +58,16 @@ pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
                 output.push_str(&opts.warning(&warning));
                 output.push('\n');
             }
+            let human_intcode = intcode
+                .iter()
+                .map(|d| d.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
             *COMPUTER.lock().unwrap() = Some(run::Computer::new(intcode));
-            Output {
-                state: State::Waiting,
+            AssembleOutput {
+                state: AssembleState::Running,
                 output,
+                intcode: Some(human_intcode),
             }
         }
         Err((errors, warnings)) => {
@@ -61,9 +80,10 @@ pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
                 output.push_str(&opts.error(&error));
                 output.push('\n');
             }
-            Output {
-                state: State::Complete,
+            AssembleOutput {
+                state: AssembleState::Failed,
                 output,
+                intcode: None,
             }
         }
     };
@@ -85,15 +105,15 @@ pub fn next(input: Option<String>) -> Result<JsValue, JsValue> {
             }
             run::State::Waiting => {
                 let output = String::from_utf8(output).map_err(to_js_value)?;
-                break Output {
-                    state: State::Waiting,
+                break NextOutput {
+                    state: NextState::Waiting,
                     output,
                 };
             }
             run::State::Complete => {
                 let output = String::from_utf8(output).map_err(to_js_value)?;
-                break Output {
-                    state: State::Complete,
+                break NextOutput {
+                    state: NextState::Complete,
                     output,
                 };
             }

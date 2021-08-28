@@ -60,6 +60,10 @@ log {
 log.output {
   color: #c5c8c6;
 }
+log.copy:hover {
+  background-color: #393939;
+  cursor: pointer;
+}
 
 .hl-white {
   color: #c5c8c6;
