@@ -1,0 +1,51 @@
+name: web
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: actions/checkout@v2
+      with:
+        ref: gh-pages
+        path: gh-pages
+
+    - name: Setup Rust
+      run: rustup show
+    - run: rustup target add wasm32-unknown-unknown
+
+    - uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+
+    - uses: extractions/setup-crate@v1
+      with:
+        owner: rustwasm
+        name: wasm-bindgen
+
+    - name: Build
+      run: |
+        npm ci --prefix web
+        npm run --prefix web build -- \
+          --public-url https://rossmacarthur.github.io/intcode
+        rm -r gh-pages/*
+        cp web/dist/* gh-pages/
+        touch gh-pages/.nojekyll
+
+    - name: Calculate Git short SHA
+      id: git
+      run: echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
+
+    - name: Git commit
+      run: |
+        cd gh-pages
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add .
+        git commit -m "Publish docs for ${{ steps.git.outputs.short_sha }}"
+        git push
+        cd -
