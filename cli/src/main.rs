@@ -1,11 +1,14 @@
 mod fmt;
+mod run;
 
 use std::ffi::OsStr;
+use std::fmt::Display;
 use std::fs;
-use std::io;
+use std::num::ParseIntError;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process;
-use std::{fmt::Display, path::Path};
+use std::result;
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
@@ -35,6 +38,10 @@ enum Opt {
         #[clap(long)]
         basic: bool,
     },
+}
+
+fn parse_program(input: &str) -> result::Result<Vec<i64>, ParseIntError> {
+    input.trim().split(',').map(str::parse).collect()
 }
 
 fn eprint(header: &str, message: impl Display) {
@@ -91,7 +98,7 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
 fn run(input: PathBuf, basic: bool) -> Result<()> {
     let intcode = match input.extension().and_then(OsStr::to_str) {
         Some("s") => assemble(&input)?,
-        Some("intcode") | None => intcode::run::parse_program(&fs::read_to_string(&input)?),
+        Some("intcode") | None => parse_program(&fs::read_to_string(&input)?)?,
         Some(ext) => {
             eprintln!(
                 "{}{} unrecognized file extension `{}`",
@@ -103,11 +110,10 @@ fn run(input: PathBuf, basic: bool) -> Result<()> {
         }
     };
     eprint("Running", input.display());
-    let r = intcode::run::Runner::new(io::stdin(), io::stdout());
     if basic {
-        r.run_basic(intcode)?;
+        run::basic(intcode)?;
     } else {
-        r.run_utf8(intcode)?;
+        run::utf8(intcode)?;
     }
     Ok(())
 }

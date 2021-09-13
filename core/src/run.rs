@@ -1,24 +1,12 @@
-mod io;
-
 use std::cmp::max;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt::Debug;
-use std::io::prelude::*;
 use std::result;
 
 use thiserror::Error;
 
 type Result<T> = result::Result<T, Error>;
-
-pub fn parse_program(input: &str) -> Vec<i64> {
-    input
-        .trim()
-        .split(',')
-        .map(str::parse)
-        .map(result::Result::unwrap)
-        .collect()
-}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -26,8 +14,6 @@ pub enum Error {
     UnknownMode { mode: i64 },
     #[error("unknown opcode `{}`", .opcode)]
     UnknownOpcode { opcode: i64 },
-    #[error(transparent)]
-    Io(#[from] io::Error),
 }
 
 /// The state of the computer.
@@ -63,7 +49,7 @@ impl Computer {
         }
     }
 
-    pub fn feed(&mut self, iter: impl Iterator<Item = i64>) {
+    pub fn feed(&mut self, iter: impl IntoIterator<Item = i64>) {
         self.input.extend(iter)
     }
 
@@ -149,46 +135,5 @@ impl Computer {
                 opcode => break Err(Error::UnknownOpcode { opcode }),
             }
         }
-    }
-}
-
-pub struct Runner<I, O: Write> {
-    input: io::BufReader<I>,
-    output: io::BufWriter<O>,
-}
-
-impl<I: Read, O: Write> Runner<I, O> {
-    pub fn new(i: I, o: O) -> Self {
-        Self {
-            input: io::BufReader::new(i),
-            output: io::BufWriter::new(o),
-        }
-    }
-
-    fn run<T: io::Kind>(mut self, intcode: Vec<i64>) -> Result<()> {
-        let mut c = Computer::new(intcode);
-        loop {
-            match c.next()? {
-                State::Yielded(value) => {
-                    T::output(&mut self.output, value)?;
-                }
-                State::Waiting => {
-                    self.output.flush()?;
-                    c.input.extend(T::input(&mut self.input)?);
-                }
-                State::Complete => {
-                    self.output.flush()?;
-                    break Ok(());
-                }
-            }
-        }
-    }
-
-    pub fn run_basic(self, intcode: Vec<i64>) -> Result<()> {
-        self.run::<io::Basic>(intcode)
-    }
-
-    pub fn run_utf8(self, intcode: Vec<i64>) -> Result<()> {
-        self.run::<io::Utf8>(intcode)
     }
 }

@@ -1,4 +1,5 @@
-use std::fmt::{self, Display};
+use std::fmt;
+use std::fmt::Display;
 use std::path::Path;
 
 use intcode::fmt::{Context, Mark, Options, Paint};
