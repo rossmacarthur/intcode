@@ -346,6 +346,6 @@ impl<'i> Parser<'i> {
 }
 
 /// Parse intcode assembly.
-pub fn program(input: &str) -> result::Result<Program, Vec<Error>> {
+pub fn program(input: &str) -> result::Result<Program<'_>, Vec<Error>> {
     Parser::new(input).eat_program()
 }

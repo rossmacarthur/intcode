@@ -50,8 +50,8 @@ pub fn init() {
 
 #[wasm_bindgen]
 pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
-    let opts = fmt::Html::new(&asm);
-    let output = match intcode::assemble::to_intcode(&asm) {
+    let opts = fmt::Html::new(asm);
+    let output = match intcode::assemble::to_intcode(asm) {
         Ok((intcode, warnings)) => {
             let mut output = String::new();
             for warning in warnings {

@@ -50,7 +50,7 @@ impl Paint for Plain {
 }
 
 impl Plain {
-    pub fn new<'i>(input: &'i str) -> Options<'i, Self> {
+    pub fn new(input: &str) -> Options<'_, Self> {
         Options::new(input, "<input>")
     }
 }
@@ -84,7 +84,7 @@ impl<'i, P: Paint> Options<'i, P> {
             mark: Mark,
         }
 
-        impl<P: Paint, D: Display> fmt::Display for Painted<P, D> {
+        impl<P: Paint, D: Display> Display for Painted<P, D> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 P::fmt(&self.display, self.ctx, self.mark, f)
             }

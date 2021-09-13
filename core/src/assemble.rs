@@ -46,7 +46,7 @@ fn insert_label<'a>(
     Ok(())
 }
 
-fn assemble(ast: Program) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
+fn assemble(ast: Program<'_>) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
     let mut output = Vec::new();
     let mut errors = Vec::new();
     let mut warnings = Vec::new();

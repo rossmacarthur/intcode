@@ -5,7 +5,7 @@ use intcode::fmt::{Context, Mark, Options, Paint};
 pub struct Html;
 
 impl Html {
-    pub fn new<'i>(input: &'i str) -> Options<'i, Self> {
+    pub fn new(input: &str) -> Options<'_, Self> {
         Options::new(input, "&lt;input&gt;")
     }
 }
