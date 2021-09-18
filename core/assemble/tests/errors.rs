@@ -1,5 +1,5 @@
-use intcode_core::fmt;
-use intcode_core::{assemble, ErrorSet};
+use intcode_assemble::fmt;
+use intcode_assemble::{assemble, ErrorSet};
 
 use pretty_assertions::assert_eq;
 

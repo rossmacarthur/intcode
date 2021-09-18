@@ -1,4 +1,4 @@
-use intcode_core::{assemble, Intcode};
+use intcode_assemble::{assemble, Intcode};
 
 use pretty_assertions::assert_eq;
 

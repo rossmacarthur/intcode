@@ -165,14 +165,14 @@ dependencies = [
  "clap",
  "clap_derive",
  "indexmap",
- "intcode-core",
+ "intcode-assemble",
  "pretty_assertions",
  "thiserror",
  "yansi",
 ]
 
 [[package]]
-name = "intcode-core"
+name = "intcode-assemble"
 version = "0.0.0"
 dependencies = [
  "dairy",
@@ -187,7 +187,7 @@ name = "intcode-wasm"
 version = "0.0.0"
 dependencies = [
  "console_error_panic_hook",
- "intcode-core",
+ "intcode-assemble",
  "once_cell",
  "serde",
  "wasm-bindgen",
