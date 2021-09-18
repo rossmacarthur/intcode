@@ -11,7 +11,7 @@ use crate::assemble::lex::{Token, Tokens};
 use crate::error::{Error, ErrorSet, Result, ResultSet};
 use crate::span::{Span, S};
 
-struct Parser<'i> {
+pub struct Parser<'i> {
     input: &'i str,
     tokens: Tokens<'i>,
 }
@@ -75,7 +75,7 @@ impl<'i> From<&'i str> for Label<'i> {
 }
 
 impl<'i> Parser<'i> {
-    fn new(input: &'i str) -> Self {
+    pub fn new(input: &'i str) -> Self {
         let tokens = Tokens::new(input);
         Self { input, tokens }
     }
@@ -322,7 +322,7 @@ impl<'i> Parser<'i> {
         Ok(Some(Stmt { label, instr }))
     }
 
-    fn eat_program(mut self) -> ResultSet<Program<'i>> {
+    pub fn eat_program(mut self) -> ResultSet<Program<'i>> {
         let mut stmts = Vec::new();
         let mut errors = Vec::new();
         while let Some(stmt) = self.eat_stmt().transpose() {
@@ -344,9 +344,4 @@ impl<'i> Parser<'i> {
             }),
         }
     }
-}
-
-/// Parse intcode assembly.
-pub fn program(input: &str) -> ResultSet<Program<'_>> {
-    Parser::new(input).eat_program()
 }

@@ -53,10 +53,10 @@ fn eprint(header: &str, message: impl Display) {
     }
 }
 
-fn assemble(input: &Path) -> Result<Vec<i64>> {
-    let asm = fs::read_to_string(input)?;
-    let fmt = fmt::Ansi::new(&asm, input);
-    eprint("Assembling", input.display());
+fn assemble(path: &Path) -> Result<Vec<i64>> {
+    let asm = fs::read_to_string(path)?;
+    let fmt = fmt::Ansi::new(&asm, path);
+    eprint("Assembling", path.display());
     intcode::assemble::to_intcode(&asm)
         .map(|Intcode { output, warnings }| {
             for warning in warnings {
@@ -75,15 +75,15 @@ fn assemble(input: &Path) -> Result<Vec<i64>> {
                 "{}{} could not assemble `{}`",
                 Paint::red("error").bold(),
                 Paint::default(":").bold(),
-                input.display()
+                path.display()
             );
             process::exit(1);
         })
 }
 
-fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
-    let output = output.unwrap_or_else(|| input.with_extension("intcode"));
-    let intcode = assemble(&input)?;
+fn build(path: PathBuf, output: Option<PathBuf>) -> Result<()> {
+    let output = output.unwrap_or_else(|| path.with_extension("intcode"));
+    let intcode = assemble(&path)?;
     fs::write(
         &output,
         intcode
@@ -96,10 +96,10 @@ fn build(input: PathBuf, output: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn run(input: PathBuf, basic: bool) -> Result<()> {
-    let intcode = match input.extension().and_then(OsStr::to_str) {
-        Some("s") => assemble(&input)?,
-        Some("intcode") | None => parse_program(&fs::read_to_string(&input)?)?,
+fn run(path: PathBuf, basic: bool) -> Result<()> {
+    let intcode = match path.extension().and_then(OsStr::to_str) {
+        Some("s") => assemble(&path)?,
+        Some("intcode") | None => parse_program(&fs::read_to_string(&path)?)?,
         Some(ext) => {
             eprintln!(
                 "{}{} unrecognized file extension `{}`",
@@ -110,7 +110,7 @@ fn run(input: PathBuf, basic: bool) -> Result<()> {
             process::exit(1);
         }
     };
-    eprint("Running", input.display());
+    eprint("Running", path.display());
     if basic {
         run::basic(intcode)?;
     } else {

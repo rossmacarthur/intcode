@@ -5,6 +5,7 @@ mod parse;
 use indexmap::IndexMap;
 
 use self::ast::{Instr, Label, Param, Program, RawParam, Stmt};
+use self::parse::Parser;
 use crate::error::{Error, ErrorSet, ResultSet, Warning};
 use crate::span::{Span, S};
 
@@ -177,6 +178,6 @@ fn assemble(ast: Program<'_>) -> ResultSet<Intcode> {
 }
 
 /// Assemble the program as intcode.
-pub fn to_intcode(input: &str) -> ResultSet<Intcode> {
-    parse::program(input).and_then(assemble)
+pub fn to_intcode(asm: &str) -> ResultSet<Intcode> {
+    Parser::new(asm).eat_program().and_then(assemble)
 }
