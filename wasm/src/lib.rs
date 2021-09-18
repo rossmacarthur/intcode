@@ -9,7 +9,9 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-use intcode::{run, ErrorSet, Intcode};
+use intcode::assemble::Intcode;
+use intcode::error::ErrorSet;
+use intcode::run;
 
 static COMPUTER: Lazy<Mutex<Option<run::Computer>>> = Lazy::new(Default::default);
 
@@ -45,7 +47,6 @@ fn to_js_value(e: impl StdError) -> JsValue {
 #[wasm_bindgen(start)]
 pub fn init() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
-    yansi::Paint::disable();
 }
 
 #[wasm_bindgen]

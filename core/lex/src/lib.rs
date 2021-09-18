@@ -3,8 +3,8 @@
 use std::ops;
 use std::str;
 
-use crate::error::{Error, Result};
-use crate::span::{s, S};
+use intcode_error::span::{s, S};
+use intcode_error::{Error, Result};
 
 /// The type of token yielded by the lexer.
 #[derive(Debug, Clone, PartialEq, Eq)]

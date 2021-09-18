@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use intcode::fmt::{Context, Mark, Options, Paint};
+use intcode::error::fmt::{Context, Mark, Options, Paint};
 
 pub struct Html;
 

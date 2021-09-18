@@ -1,0 +1,11 @@
+[package]
+name = "intcode-error"
+version = "0.0.0"
+authors = ["Ross MacArthur <ross@macarthur.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+dairy = "0.2.2"
+thiserror = "1.0.26"
+unicode-width = "0.1.8"

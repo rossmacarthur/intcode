@@ -1,20 +1,19 @@
 [package]
-name = "intcode"
+name = "intcode-cli"
 version = "0.0.0"
 authors = ["Ross MacArthur <ross@macarthur.io>"]
 edition = "2018"
 publish = false
 default-run = "intcode"
 
+[[bin]]
+name = "intcode"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1.0.42"
 atty = "0.2.14"
-clap_derive = "=3.0.0-beta.2"
 clap = "=3.0.0-beta.2"
-intcode = { package = "intcode-assemble", path = "../core/assemble" }
-indexmap = "1.7.0"
-thiserror = "1.0.26"
+clap_derive = "=3.0.0-beta.2"
+intcode = { path = "../core/intcode" }
 yansi = "0.5.0"
-
-[dev-dependencies]
-pretty_assertions = "0.7.2"

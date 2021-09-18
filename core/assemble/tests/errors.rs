@@ -1,11 +1,10 @@
-use intcode_assemble::fmt;
-use intcode_assemble::{assemble, ErrorSet};
+use intcode_error::{fmt, ErrorSet};
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
-    let ErrorSet { errors, .. } = assemble::to_intcode(asm).unwrap_err();
+    let ErrorSet { errors, .. } = intcode_assemble::to_intcode(asm).unwrap_err();
     let fmt = fmt::Plain::new(asm);
     errors
         .iter()

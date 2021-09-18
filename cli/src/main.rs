@@ -12,7 +12,8 @@ use std::result;
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
-use intcode::{ErrorSet, Intcode};
+use intcode::assemble::Intcode;
+use intcode::error::ErrorSet;
 use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]

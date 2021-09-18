@@ -4,12 +4,13 @@ mod integer;
 mod string;
 mod unpack;
 
-use self::integer::Sign;
-use self::unpack::TryUnpack;
-use crate::assemble::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
-use crate::assemble::lex::{Token, Tokens};
-use crate::error::{Error, ErrorSet, Result, ResultSet};
-use crate::span::{Span, S};
+use intcode_error::span::{Span, S};
+use intcode_error::{Error, ErrorSet, Result, ResultSet};
+use intcode_lex::{Token, Tokens};
+
+use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
+use crate::parse::integer::Sign;
+use crate::parse::unpack::TryUnpack;
 
 pub struct Parser<'i> {
     input: &'i str,
@@ -38,29 +39,31 @@ impl Ident {
     }
 }
 
-impl Token {
-    fn is_hash(&self) -> bool {
-        matches!(self, Self::Hash)
+mod token {
+    use super::*;
+
+    pub fn is_hash(tk: &Token) -> bool {
+        matches!(tk, Token::Hash)
     }
 
-    fn is_eof(&self) -> bool {
-        matches!(self, Self::Eof)
+    pub fn is_eof(tk: &Token) -> bool {
+        matches!(tk, Token::Eof)
     }
 
-    fn is_newline_or_eof(&self) -> bool {
-        matches!(self, Self::Newline | Self::Eof)
+    pub fn is_newline_or_eof(tk: &Token) -> bool {
+        matches!(tk, Token::Newline | Token::Eof)
     }
 
-    fn is_not_newline_or_eof(&self) -> bool {
-        !self.is_newline_or_eof()
+    pub fn is_not_newline_or_eof(tk: &Token) -> bool {
+        !is_newline_or_eof(tk)
     }
 
-    fn is_delimiter(&self) -> bool {
-        matches!(self, Self::Comma) || self.is_not_newline_or_eof()
+    pub fn is_delimiter(tk: &Token) -> bool {
+        matches!(tk, Token::Comma) || is_not_newline_or_eof(tk)
     }
 
-    fn is_interesting(&self) -> bool {
-        !matches!(self, Self::Whitespace | Self::Comment)
+    pub fn is_interesting(tk: &Token) -> bool {
+        !matches!(tk, Token::Whitespace | Token::Comment)
     }
 }
 
@@ -81,7 +84,7 @@ impl<'i> Parser<'i> {
     }
 
     fn peek(&self) -> Result<S<Token>> {
-        self.tokens.clone().find(Token::is_interesting)
+        self.tokens.clone().find(token::is_interesting)
     }
 
     fn is_next<P: FnOnce(&Token) -> bool>(&self, predicate: P) -> Result<bool> {
@@ -89,7 +92,7 @@ impl<'i> Parser<'i> {
     }
 
     fn eat(&mut self) -> Result<S<Token>> {
-        self.tokens.find(Token::is_interesting)
+        self.tokens.find(token::is_interesting)
     }
 
     fn advance(&mut self) {
@@ -161,7 +164,7 @@ impl<'i> Parser<'i> {
     }
 
     fn eat_raw_param(&mut self) -> Result<(Option<Span>, S<RawParam<'i>>)> {
-        if self.is_next(Token::is_hash)? {
+        if self.is_next(token::is_hash)? {
             let S(_, span) = self.expect(Token::Hash)?;
             let S(raw, s) = self._eat_raw_param()?;
             Ok((Some(span), S(raw, span.include(s))))
@@ -172,9 +175,9 @@ impl<'i> Parser<'i> {
 
     fn eat_raw_params(&mut self) -> Result<Vec<(Option<Span>, S<RawParam<'i>>)>> {
         let mut params = Vec::new();
-        if self.is_next(Token::is_not_newline_or_eof)? {
+        if self.is_next(token::is_not_newline_or_eof)? {
             params.push(self.eat_raw_param()?);
-            while self.is_next(Token::is_delimiter)? {
+            while self.is_next(token::is_delimiter)? {
                 self.expect(Token::Comma)?;
                 params.push(self.eat_raw_param()?);
             }
@@ -298,7 +301,7 @@ impl<'i> Parser<'i> {
 
     fn eat_stmt(&mut self) -> Result<Option<Stmt<'i>>> {
         self.eat_all(Token::Newline)?;
-        if self.is_next(Token::is_eof)? {
+        if self.is_next(token::is_eof)? {
             return Ok(None);
         }
         let label = match self.peek()? {
@@ -316,7 +319,7 @@ impl<'i> Parser<'i> {
         };
         self.eat_all(Token::Newline)?;
         let instr = self.eat_instr()?;
-        if !self.is_next(Token::is_eof)? {
+        if !self.is_next(token::is_eof)? {
             self.expect(Token::Newline)?;
         }
         Ok(Some(Stmt { label, instr }))
@@ -330,7 +333,7 @@ impl<'i> Parser<'i> {
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     errors.push(err);
-                    while !self.is_next(Token::is_newline_or_eof).unwrap_or(false) {
+                    while !self.is_next(token::is_newline_or_eof).unwrap_or(false) {
                         drop(self.eat());
                     }
                 }

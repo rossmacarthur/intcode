@@ -4,8 +4,8 @@ use std::string::String as StdString;
 
 use dairy::String;
 
-use crate::error::{Error, Result};
-use crate::span::Span;
+use intcode_error::span::Span;
+use intcode_error::{Error, Result};
 
 pub fn parse(input: &str, span: Span) -> Result<String<'_>> {
     let raw = span.as_str(input);

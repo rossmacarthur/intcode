@@ -1,7 +1,7 @@
 //! Parse an integer.
 
-use crate::error::{Error, Result};
-use crate::span::Span;
+use intcode_error::span::Span;
+use intcode_error::{Error, Result};
 
 pub enum Sign {
     Negative,

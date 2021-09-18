@@ -160,15 +160,9 @@ dependencies = [
 name = "intcode"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "atty",
- "clap",
- "clap_derive",
- "indexmap",
  "intcode-assemble",
- "pretty_assertions",
- "thiserror",
- "yansi",
+ "intcode-error",
+ "intcode-run",
 ]
 
 [[package]]
@@ -177,9 +171,44 @@ version = "0.0.0"
 dependencies = [
  "dairy",
  "indexmap",
+ "intcode-error",
+ "intcode-lex",
  "pretty_assertions",
+]
+
+[[package]]
+name = "intcode-cli"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "atty",
+ "clap",
+ "clap_derive",
+ "intcode",
+ "yansi",
+]
+
+[[package]]
+name = "intcode-error"
+version = "0.0.0"
+dependencies = [
+ "dairy",
  "thiserror",
  "unicode-width",
+]
+
+[[package]]
+name = "intcode-lex"
+version = "0.0.0"
+dependencies = [
+ "intcode-error",
+]
+
+[[package]]
+name = "intcode-run"
+version = "0.0.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -187,11 +216,10 @@ name = "intcode-wasm"
 version = "0.0.0"
 dependencies = [
  "console_error_panic_hook",
- "intcode-assemble",
+ "intcode",
  "once_cell",
  "serde",
  "wasm-bindgen",
- "yansi",
 ]
 
 [[package]]

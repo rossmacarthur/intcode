@@ -1,2 +1,10 @@
 [workspace]
-members = ["cli", "core/assemble", "wasm"]
+members = [
+    "cli",
+    "core/assemble",
+    "core/error",
+    "core/intcode",
+    "core/lex",
+    "core/run",
+    "wasm",
+]

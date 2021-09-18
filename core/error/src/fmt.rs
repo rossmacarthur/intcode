@@ -8,8 +8,7 @@ use std::path::Path;
 use dairy::Cow;
 use unicode_width::UnicodeWidthStr;
 
-use crate::error::{Error, Warning};
-use crate::span::Span;
+use crate::{Error, Span, Warning};
 
 pub trait Paint {
     fn fmt<D: Display>(

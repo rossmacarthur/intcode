@@ -2,7 +2,7 @@
 
 use dairy::String;
 
-use crate::span::S;
+use intcode_error::span::S;
 
 /// A label specified in a parameter.
 #[derive(Debug, Clone, Copy, PartialEq)]

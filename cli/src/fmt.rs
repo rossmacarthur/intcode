@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::path::Path;
 
-use intcode::fmt::{Context, Mark, Options, Paint};
+use intcode::error::fmt::{Context, Mark, Options, Paint};
 
 pub struct Ansi;
 

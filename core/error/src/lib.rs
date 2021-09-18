@@ -1,4 +1,7 @@
-//! An error type for the lexer and parser.
+//! Defines an error type for the compiler.
+
+pub mod fmt;
+pub mod span;
 
 use dairy::Cow;
 use thiserror::Error;
@@ -33,7 +36,7 @@ pub struct ErrorSet {
 }
 
 impl Error {
-    pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
+    pub fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
             msg: msg.into(),
@@ -42,7 +45,7 @@ impl Error {
 }
 
 impl Warning {
-    pub(crate) fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
+    pub fn new(msg: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
             msg: msg.into(),

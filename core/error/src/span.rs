@@ -1,6 +1,5 @@
-//! Represents a span in the input.
+//! Represents a span in the input text.
 
-use std::fmt::Debug;
 use std::ops;
 
 /// Represents a spanned `T`.
