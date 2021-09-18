@@ -6,6 +6,7 @@ use thiserror::Error;
 use crate::span::Span;
 
 pub type Result<T> = std::result::Result<T, Error>;
+pub type ResultSet<T> = std::result::Result<T, ErrorSet>;
 
 /// A parse error.
 ///
@@ -23,6 +24,12 @@ pub struct Error {
 pub struct Warning {
     pub msg: Cow<'static, str>,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ErrorSet {
+    pub errors: Vec<Error>,
+    pub warnings: Vec<Warning>,
 }
 
 impl Error {

@@ -12,6 +12,7 @@ use std::result;
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
+use intcode::{ErrorSet, Intcode};
 use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]
@@ -57,13 +58,13 @@ fn assemble(input: &Path) -> Result<Vec<i64>> {
     let fmt = fmt::Ansi::new(&asm, input);
     eprint("Assembling", input.display());
     intcode::assemble::to_intcode(&asm)
-        .map(|(output, warnings)| {
+        .map(|Intcode { output, warnings }| {
             for warning in warnings {
                 eprintln!("{}", fmt.warning(&warning));
             }
             output
         })
-        .map_err(|(errors, warnings)| {
+        .map_err(|ErrorSet { errors, warnings }| {
             for warning in warnings {
                 eprintln!("{}", fmt.warning(&warning));
             }

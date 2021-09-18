@@ -4,13 +4,11 @@ mod integer;
 mod string;
 mod unpack;
 
-use std::result;
-
 use self::integer::Sign;
 use self::unpack::TryUnpack;
 use crate::assemble::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
 use crate::assemble::lex::{Token, Tokens};
-use crate::error::{Error, Result};
+use crate::error::{Error, ErrorSet, Result, ResultSet};
 use crate::span::{Span, S};
 
 struct Parser<'i> {
@@ -228,12 +226,12 @@ impl<'i> Parser<'i> {
             .into_iter()
             .map(|(prefix, raw_param)| {
                 if let Some(span) = prefix {
-                    return Err(Error::new("immediate mode not allowed with `DB`", span));
+                    Err(Error::new("immediate mode not allowed with `DB`", span))
+                } else if let S(RawParam::Label(S(Label::Fixed("rb"), span), _), _) = raw_param {
+                    Err(Error::new("relative mode not allowed with `DB`", span))
+                } else {
+                    Ok(raw_param)
                 }
-                if let S(RawParam::Label(S(Label::Fixed("rb"), span), _), _) = raw_param {
-                    return Err(Error::new("relative mode not allowed with `DB`", span));
-                }
-                Ok(raw_param)
             })
             .collect()
     }
@@ -324,7 +322,7 @@ impl<'i> Parser<'i> {
         Ok(Some(Stmt { label, instr }))
     }
 
-    fn eat_program(mut self) -> result::Result<Program<'i>, Vec<Error>> {
+    fn eat_program(mut self) -> ResultSet<Program<'i>> {
         let mut stmts = Vec::new();
         let mut errors = Vec::new();
         while let Some(stmt) = self.eat_stmt().transpose() {
@@ -340,12 +338,15 @@ impl<'i> Parser<'i> {
         }
         match errors.is_empty() {
             true => Ok(Program { stmts }),
-            false => Err(errors),
+            false => Err(ErrorSet {
+                errors,
+                ..Default::default()
+            }),
         }
     }
 }
 
 /// Parse intcode assembly.
-pub fn program(input: &str) -> result::Result<Program<'_>, Vec<Error>> {
+pub fn program(input: &str) -> ResultSet<Program<'_>> {
     Parser::new(input).eat_program()
 }

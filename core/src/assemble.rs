@@ -5,8 +5,14 @@ mod parse;
 use indexmap::IndexMap;
 
 use self::ast::{Instr, Label, Param, Program, RawParam, Stmt};
-use crate::error::{Error, Warning};
+use crate::error::{Error, ErrorSet, ResultSet, Warning};
 use crate::span::{Span, S};
+
+#[derive(Debug, Clone)]
+pub struct Intcode {
+    pub output: Vec<i64>,
+    pub warnings: Vec<Warning>,
+}
 
 #[derive(Debug, Default)]
 struct State {
@@ -46,7 +52,7 @@ fn insert_label<'a>(
     Ok(())
 }
 
-fn assemble(ast: Program<'_>) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
+fn assemble(ast: Program<'_>) -> ResultSet<Intcode> {
     let mut output = Vec::new();
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
@@ -165,14 +171,12 @@ fn assemble(ast: Program<'_>) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, V
         }
     }
     match errors.is_empty() {
-        true => Ok((output, warnings)),
-        false => Err((errors, warnings)),
+        true => Ok(Intcode { output, warnings }),
+        false => Err(ErrorSet { errors, warnings }),
     }
 }
 
 /// Assemble the program as intcode.
-pub fn to_intcode(input: &str) -> Result<(Vec<i64>, Vec<Warning>), (Vec<Error>, Vec<Warning>)> {
-    parse::program(input)
-        .map_err(|errs| (errs, Vec::new()))
-        .and_then(assemble)
+pub fn to_intcode(input: &str) -> ResultSet<Intcode> {
+    parse::program(input).and_then(assemble)
 }

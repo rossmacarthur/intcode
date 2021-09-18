@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-use intcode::run;
+use intcode::{run, ErrorSet, Intcode};
 
 static COMPUTER: Lazy<Mutex<Option<run::Computer>>> = Lazy::new(Default::default);
 
@@ -52,7 +52,10 @@ pub fn init() {
 pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
     let opts = fmt::Html::new(asm);
     let output = match intcode::assemble::to_intcode(asm) {
-        Ok((intcode, warnings)) => {
+        Ok(Intcode {
+            output: intcode,
+            warnings,
+        }) => {
             let mut output = String::new();
             for warning in warnings {
                 output.push_str(&opts.warning(&warning));
@@ -70,7 +73,7 @@ pub fn assemble(asm: &str) -> Result<JsValue, JsValue> {
                 intcode: Some(human_intcode),
             }
         }
-        Err((errors, warnings)) => {
+        Err(ErrorSet { errors, warnings }) => {
             let mut output = String::new();
             for warning in warnings {
                 output.push_str(&opts.warning(&warning));

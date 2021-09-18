@@ -1,11 +1,11 @@
-use intcode_core::assemble;
+use intcode_core::{assemble, Intcode};
 
 use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
-    let (intcode, _) = assemble::to_intcode(asm).unwrap();
-    intcode
+    let Intcode { output, .. } = assemble::to_intcode(asm).unwrap();
+    output
         .into_iter()
         .map(|d| d.to_string())
         .collect::<Vec<_>>()
