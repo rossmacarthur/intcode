@@ -7,5 +7,5 @@ publish = false
 
 [dependencies]
 dairy = "0.2.2"
-thiserror = "1.0.26"
+thiserror = "1.0.29"
 unicode-width = "0.1.8"

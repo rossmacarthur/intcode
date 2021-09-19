@@ -18,10 +18,10 @@ use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]
 #[clap(
+    author,
     global_setting = AppSettings::DeriveDisplayOrder,
     global_setting = AppSettings::DisableHelpSubcommand,
-    global_setting = AppSettings::GlobalVersion,
-    global_setting = AppSettings::VersionlessSubcommands,
+    global_setting = AppSettings::DisableVersionForSubcommands,
 )]
 enum Opt {
     Build {
