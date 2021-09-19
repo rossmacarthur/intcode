@@ -99,6 +99,16 @@ impl From<Mode> for i64 {
     }
 }
 
+impl RawParam<'_> {
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Self::Label(_, _) => 1,
+            Self::Number(_) => 1,
+            Self::String(string) => string.len(),
+        }
+    }
+}
+
 impl Instr<'_> {
     pub(crate) fn opcode(&self) -> i64 {
         match self {

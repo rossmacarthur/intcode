@@ -111,9 +111,10 @@ fn assemble(ast: Program<'_>) -> ResultSet<Intcode> {
                 output[i] += mode * 100;
             }
             Instr::Data(data) => {
-                let ip = (output.len() + data.len()) as i64;
-                for d in data {
-                    match d.0 {
+                let data_len: usize = data.iter().map(|p| p.len()).sum();
+                let ip = (output.len() + data_len) as i64;
+                for S(p, _) in data {
+                    match p {
                         RawParam::Label(S(Label::Underscore, _), offset) => {
                             output.push(offset);
                         }
