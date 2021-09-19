@@ -45,7 +45,6 @@ pub struct CharIndices<'i> {
 /// An iterator over input tokens.
 #[derive(Debug, Clone)]
 pub struct Tokens<'i> {
-    input: &'i str,
     iter: CharIndices<'i>,
 }
 
@@ -119,7 +118,7 @@ impl<'i> Tokens<'i> {
     /// Constructs a new iterator over the input tokens.
     pub fn new(input: &'i str) -> Self {
         let iter = CharIndices::new(input);
-        Self { input, iter }
+        Self { iter }
     }
 
     /// Lexes the next character if the predicate is satisfied.

@@ -145,13 +145,13 @@ fn assemble(ast: Program<'_>) -> ResultSet<Intcode> {
     }
 
     for (label, State { defs, refs }) in labels {
-        match defs.as_slice() {
-            &[] => {
+        match *defs.as_slice() {
+            [] => {
                 for (_, span) in refs {
                     errors.push(Error::new("undefined label", span));
                 }
             }
-            &[(address, span)] => {
+            [(address, span)] => {
                 if refs.is_empty() && !label.starts_with('_') {
                     warnings.push(Warning::new("label is never used", span))
                 } else {
