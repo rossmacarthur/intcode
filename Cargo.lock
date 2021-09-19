@@ -172,6 +172,7 @@ dependencies = [
  "indexmap",
  "intcode-error",
  "intcode-lex",
+ "intcode-run",
  "pretty_assertions",
 ]
 

@@ -4,11 +4,12 @@ use pretty_assertions::assert_eq;
 
 #[track_caller]
 fn assemble(asm: &str) -> String {
-    let ErrorSet { errors, .. } = intcode_assemble::to_intcode(asm).unwrap_err();
+    let ErrorSet { errors, warnings } = intcode_assemble::to_intcode(asm).unwrap_err();
     let fmt = fmt::Plain::new(asm);
-    errors
+    warnings
         .iter()
-        .map(|e| fmt.error(e))
+        .map(|w| fmt.warning(w))
+        .chain(errors.iter().map(|e| fmt.error(e)))
         .collect::<Vec<String>>()
         .join("\n")
 }
@@ -182,6 +183,18 @@ fn parse_invalid_base_2_integer() {
 }
 
 #[test]
+fn parse_invalid_base_8_integer() {
+    let asm = "DB 0o097";
+    let expected = "
+  --> <input>:1:7
+   |
+ 1 | DB 0o097
+   |       ^ invalid digit for base 8 literal
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
 fn parse_invalid_base_10_integer() {
     let asm = "DB 0a21";
     let expected = "
@@ -267,12 +280,12 @@ fn parse_unexpected_string_emoji_escape() {
 
 #[test]
 fn parse_invalid_string_escape() {
-    let asm = r#"ADD "te\st""#;
+    let asm = r#"ADD "tes\"\\\t\r\n\s""#;
     let expected = r#"
-  --> <input>:1:9
+  --> <input>:1:20
    |
- 1 | ADD "te\st"
-   |         ^ unknown escape character
+ 1 | ADD "tes\"\\\t\r\n\s"
+   |                    ^ unknown escape character
 "#;
     assert_eq!(assemble(asm), expected);
 }
@@ -369,6 +382,18 @@ fn parse_invalid_immediate_and_relative_mode() {
    |
  1 | DB #rb+1
    |    ^ immediate mode not allowed with `DB`
+";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn parse_invalid_label() {
+    let asm = "ADD X+1";
+    let expected = "
+  --> <input>:1:5
+   |
+ 1 | ADD X+1
+   |     ^ expected a parameter, found a mnemonic
 ";
     assert_eq!(assemble(asm), expected);
 }

@@ -37,7 +37,7 @@ a: DB 33
 }
 
 #[test]
-fn advent_day5_example_cmp_positional() {
+fn advent_day5_example_eq_positional() {
     let asm = "\
 IN a
 EQ a, b, a
@@ -51,7 +51,21 @@ b: DB 8
 }
 
 #[test]
-fn advent_day5_example_cmp_immediate() {
+fn advent_day5_example_lt_positional() {
+    let asm = "\
+IN a
+LT a, b, a
+OUT a
+HLT
+a: DB -1
+b: DB 8
+";
+    let expected = "3,9,7,9,10,9,4,9,99,-1,8";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn advent_day5_example_eq_immediate() {
     let asm = "\
 IN 3
 EQ #-1, #8, 3
@@ -59,6 +73,18 @@ OUT 3
 HLT
 ";
     let expected = "3,3,1108,-1,8,3,4,3,99";
+    assert_eq!(assemble(asm), expected);
+}
+
+#[test]
+fn advent_day5_example_lt_immediate() {
+    let asm = "\
+IN 3
+LT #-1, #8, 3
+OUT 3
+HLT
+";
+    let expected = "3,3,1107,-1,8,3,4,3,99";
     assert_eq!(assemble(asm), expected);
 }
 
@@ -82,12 +108,12 @@ d: DB o
 #[test]
 fn advent_day5_example_jump_immediate() {
     let asm = "\
-IN  j+1
-j: JNZ #-1, #o
+IN ip+1
+JNZ #-1, #o
 ADD #0, #0, a
 o: OUT a
 HLT
-a: DB  1
+a: DB 1
 ";
     let expected = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
     assert_eq!(assemble(asm), expected);
