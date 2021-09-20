@@ -201,6 +201,7 @@ dependencies = [
 name = "intcode-lex"
 version = "0.0.0"
 dependencies = [
+ "dairy",
  "intcode-error",
 ]
 

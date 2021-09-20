@@ -1,5 +1,7 @@
 //! Tokenize the input.
 
+pub mod parse;
+
 use std::ops;
 use std::str;
 
@@ -25,9 +27,13 @@ pub enum Token {
     Whitespace,
     /// A mnemonic, variable or label identifier, like `HLT`, `the_end` or `rb`.
     Ident,
-    /// A decimal number like `19`, `0b1011, or `0o777`, or `0x7f`.
+    /// A decimal number like `19`, `0b1011`, or `0o777`, or `0x7f`.
+    ///
+    /// The spanned value should be parsed using [`parse::integer()`].
     Number,
     /// A string like `"Hello World!\n"`.
+    ///
+    /// The spanned value should be parsed using [`parse::string()`].
     String,
     /// Comment contents including the `;` prefix.
     Comment,
@@ -37,7 +43,7 @@ pub enum Token {
 
 /// An iterator over (index, char) in a string.
 #[derive(Debug, Clone)]
-pub struct CharIndices<'i> {
+struct CharIndices<'i> {
     iter: str::CharIndices<'i>,
     len: usize,
 }

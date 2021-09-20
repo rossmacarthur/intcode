@@ -1,15 +1,13 @@
 //! Parse the input into a syntax tree.
 
-mod integer;
-mod string;
 mod unpack;
 
 use intcode_error::span::{Span, S};
 use intcode_error::{Error, ErrorSet, Result, ResultSet};
+use intcode_lex::parse::{self, Sign};
 use intcode_lex::{Token, Tokens};
 
 use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
-use crate::parse::integer::Sign;
 use crate::parse::unpack::TryUnpack;
 
 pub struct Parser<'i> {
@@ -122,16 +120,16 @@ impl<'i> Parser<'i> {
     fn _eat_raw_param(&mut self) -> Result<S<RawParam<'i>>> {
         match self.eat()? {
             S(Token::String, span) => {
-                let value = string::parse(self.input, span)?;
+                let value = parse::string(self.input, span)?;
                 Ok(S(RawParam::String(value), span))
             }
             S(Token::Minus, span) => {
                 let S(_, s) = self.expect(Token::Number)?;
-                let value = integer::parse(self.input, s, Sign::Negative)?;
+                let value = parse::integer(self.input, s, Sign::Negative)?;
                 Ok(S(RawParam::Number(value), span.include(s)))
             }
             S(Token::Number, span) => {
-                let value = integer::parse(self.input, span, Sign::Positive)?;
+                let value = parse::integer(self.input, span, Sign::Positive)?;
                 Ok(S(RawParam::Number(value), span))
             }
             S(Token::Ident, span) => {
@@ -144,13 +142,13 @@ impl<'i> Parser<'i> {
                     Token::Minus => {
                         self.advance();
                         let S(_, s) = self.expect(Token::Number)?;
-                        let offset = integer::parse(self.input, s, Sign::Negative)?;
+                        let offset = parse::integer(self.input, s, Sign::Negative)?;
                         Ok(S(RawParam::Label(label, offset), span.include(s)))
                     }
                     Token::Plus => {
                         self.advance();
                         let S(_, s) = self.expect(Token::Number)?;
-                        let offset = integer::parse(self.input, s, Sign::Positive)?;
+                        let offset = parse::integer(self.input, s, Sign::Positive)?;
                         Ok(S(RawParam::Label(label, offset), span.include(s)))
                     }
                     _ => Ok(S(RawParam::Label(label, 0), span)),
