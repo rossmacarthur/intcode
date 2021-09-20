@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "cli",
-    "core/assemble",
-    "core/error",
-    "core/intcode",
-    "core/lex",
-    "core/run",
-    "wasm",
+    "frontend/cli",
+    "frontend/wasm",
+    "intcode",
+    "intcode/assemble",
+    "intcode/error",
+    "intcode/lex",
+    "intcode/run",
 ]

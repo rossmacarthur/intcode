@@ -29,11 +29,11 @@ jobs:
 
     - name: Build
       run: |
-        npm ci --prefix web
-        npm run --prefix web build -- \
+        npm ci --prefix frontend/web
+        npm run --prefix frontend/web build -- \
           --public-url https://rossmacarthur.github.io/intcode
         rm -r gh-pages/*
-        cp web/dist/* gh-pages/
+        cp frontend/web/dist/* gh-pages/
         touch gh-pages/.nojekyll
 
     - name: Calculate Git short SHA

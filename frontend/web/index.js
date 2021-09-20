@@ -1,5 +1,5 @@
 import init, { assemble, next } from './wasm/intcode_wasm.js';
-import hello from 'bundle-text:../examples/hello-world.s';
+import hello from 'bundle-text:../../examples/hello-world.s';
 import { Mode } from './syntax.js';
 
 let editor = ace.edit("editor");
