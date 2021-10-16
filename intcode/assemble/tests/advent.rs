@@ -29,7 +29,7 @@ c: DB 50
 #[test]
 fn advent_day5_example_immediate() {
     let asm = "\
-MUL a, #3, 4
+MUL a, #3, a
 a: DB 33
 ";
     let expected = "1002,4,3,4,33";

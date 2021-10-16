@@ -1,16 +1,15 @@
 [package]
-name = "intcode-assemble"
+name = "intcode-disassemble"
 version = "0.0.0"
 authors = ["Ross MacArthur <ross@macarthur.io>"]
 edition = "2018"
 publish = false
 
 [dependencies]
-dairy = "0.2.2"
-indexmap = "1.7.0"
-intcode-error = { path = "../error" }
-intcode-lex = { path = "../lex" }
+intcode-assemble = { path = "../assemble" }
+thiserror = "1.0.30"
+
+[features]
 
 [dev-dependencies]
-intcode-run = { path = "../run" }
 pretty_assertions = "1.0.0"

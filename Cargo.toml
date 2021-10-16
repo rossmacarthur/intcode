@@ -4,6 +4,7 @@ members = [
     "frontend/wasm",
     "intcode",
     "intcode/assemble",
+    "intcode/disassemble",
     "intcode/error",
     "intcode/lex",
     "intcode/run",
