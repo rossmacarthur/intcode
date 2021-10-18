@@ -1,7 +1,11 @@
 use intcode_assemble::Intcode;
-use intcode_disassemble::Run;
+use intcode_disassemble::{Input, Run};
 
 use pretty_assertions::assert_eq;
+
+fn run_once() -> impl IntoIterator<Item = Run> {
+    Run::once(Input::Forever(0))
+}
 
 fn disassemble(intcode: &str, runs: impl IntoIterator<Item = Run>) -> String {
     let intcode: Vec<_> = intcode
@@ -40,7 +44,7 @@ c: DB 40
 d: DB 50
 ";
     let intcode = "1,9,10,3,2,3,11,0,99,30,40,50";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -50,7 +54,7 @@ MUL a, #3, a
 a: DB 33
 ";
     let intcode = "1002,4,3,4,33";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -64,7 +68,7 @@ a: DB -1
 b: DB 8
 ";
     let intcode = "3,9,8,9,10,9,4,9,99,-1,8";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -78,7 +82,7 @@ a: DB -1
 b: DB 8
 ";
     let intcode = "3,9,7,9,10,9,4,9,99,-1,8";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -90,7 +94,7 @@ OUT a+1
 HLT
 ";
     let intcode = "3,3,1108,-1,8,3,4,3,99";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -102,7 +106,7 @@ OUT a+1
 HLT
 ";
     let intcode = "3,3,1107,-1,8,3,4,3,99";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -119,7 +123,11 @@ c: DB 1
 d: DB 9
 ";
     let intcode = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
-    assert(asm, intcode, Run::twice(0, 1));
+    assert(
+        asm,
+        intcode,
+        Run::twice(Input::Static(vec![0]), Input::Static(vec![1])),
+    );
 }
 
 #[test]
@@ -133,7 +141,7 @@ HLT
 b: DB 1
 ";
     let intcode = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -147,7 +155,7 @@ JZ 101, #0
 HLT
 ";
     let intcode = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }
 
 #[test]
@@ -159,5 +167,5 @@ HLT
 a: DB 0
 ";
     let intcode = "1102,34915192,34915192,7,4,7,99,0";
-    assert(asm, intcode, Run::once());
+    assert(asm, intcode, run_once());
 }

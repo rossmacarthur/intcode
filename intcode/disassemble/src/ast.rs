@@ -85,6 +85,6 @@ pub struct Stmt {
 
 /// An entire program.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program {
+pub struct Ast {
     pub stmts: Vec<Stmt>,
 }

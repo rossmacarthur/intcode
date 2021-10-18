@@ -1,8 +1,10 @@
+//! Format the AST as intcode assembly.
+
 use std::fmt;
 use std::fmt::Display;
 use std::iter;
 
-use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
+use crate::ast::{Ast, Instr, Label, Mode, Param, RawParam, Stmt};
 
 impl Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -108,7 +110,7 @@ impl Display for Stmt {
     }
 }
 
-impl Display for Program {
+impl Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for stmt in &self.stmts {
             writeln!(f, "{}", stmt)?;

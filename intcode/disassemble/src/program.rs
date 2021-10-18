@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
 use std::iter;
-use std::rc::Rc;
 
-use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
+use crate::ast::{Ast, Instr, Label, Mode, Param, RawParam, Stmt};
 
 /// An instruction type.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,26 +19,27 @@ pub enum Opcode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Mark {
+pub enum Mark {
     Opcode(Opcode),
     Param(Param),
 }
 
 #[derive(Debug, Clone, Default)]
-struct Slot {
+pub struct Slot {
     /// The original value before the program has run.
-    original: Option<i64>,
+    pub original: Option<i64>,
     /// The current value during a program run.
-    current: i64,
+    pub current: i64,
     /// An optional mark if we figure out what the memory looks like is.
-    mark: Option<Mark>,
+    pub mark: Option<Mark>,
     /// An optional label if we add one.
-    label: Option<Label>,
+    pub label: Option<Label>,
 }
 
+/// Represents an intcode program during our analysis.
 #[derive(Debug, Clone)]
-pub struct Memory {
-    slots: Vec<Slot>,
+pub struct Program {
+    pub slots: Vec<Slot>,
 }
 
 impl Opcode {
@@ -61,23 +60,13 @@ impl Opcode {
     }
 }
 
-impl Mark {
-    fn upgrade_param(&mut self, label: Label, offset: i64) {
-        let mode = match self {
-            Self::Param(Param::Number(mode, _)) => *mode,
-            _ => panic!("expected number parameter"),
-        };
-        *self = Self::Param(Param::Label(mode, label, offset));
-    }
-}
-
 impl Slot {
     fn reset(&mut self) {
         self.current = self.original.unwrap_or(0);
     }
 }
 
-impl Memory {
+impl Program {
     pub fn new(intcode: Vec<i64>) -> Self {
         let slots = intcode
             .into_iter()
@@ -113,7 +102,7 @@ impl Memory {
         self.slots.get_mut(addr).map(|slot| &mut slot.current)
     }
 
-    fn get_original(&self, addr: usize) -> Option<i64> {
+    pub fn get_original(&self, addr: usize) -> Option<i64> {
         self.slots.get(addr).and_then(|slot| slot.original)
     }
 
@@ -177,127 +166,14 @@ impl Memory {
         }
     }
 
-    fn upgrade_param(&mut self, addr: usize, label: Label, offset: i64) {
-        self.slots[addr]
-            .mark
-            .as_mut()
-            .unwrap()
-            .upgrade_param(label, offset);
-    }
-
-    fn get_param(&self, addr: usize) -> Option<Param> {
+    pub fn get_param(&self, addr: usize) -> Option<Param> {
         self.slots.get(addr).and_then(|slot| match &slot.mark {
             Some(Mark::Param(param)) => Some(param.clone()),
             _ => None,
         })
     }
 
-    fn get_or_set_label(&mut self, addr: usize, with: impl FnOnce() -> Label) -> Label {
-        self.slots[addr].label.get_or_insert_with(with).clone()
-    }
-
-    /// Finds the preceding opcode.
-    fn instr(&self, mut addr: usize) -> Option<(usize, Opcode)> {
-        while addr > 0 {
-            addr -= 1;
-            if let Some(Mark::Opcode(opcode)) = self.slots[addr].mark {
-                return Some((addr, opcode));
-            }
-        }
-        None
-    }
-
-    /// Finds the preceding opcode's address.
-    fn instr_addr(&self, addr: usize) -> Option<usize> {
-        self.instr(addr).map(|(a, _)| a)
-    }
-
-    fn get_labeled_addr(&self, i: usize) -> Option<usize> {
-        let slot = self.slots.get(i)?;
-
-        // We only care about addresses that exist in the original program.
-        // Exclude 0 because its often used as a placeholder value.
-        let addr = || match slot.original {
-            Some(addr) if addr > 0 && self.get_original(addr as usize).is_some() => {
-                Some(addr as usize)
-            }
-            _ => None,
-        };
-
-        match slot.mark {
-            // Find positional parameters, these refer to addresses in the
-            // program.
-            Some(Mark::Param(Param::Number(Mode::Positional, _))) => addr(),
-
-            // Find immediate parameters, if the instruction is a JNZ or JZ
-            // the second parameter will likely refer to an address.
-            Some(Mark::Param(Param::Number(Mode::Immediate, _)))
-                if {
-                    let (op_i, op) = self.instr(i)?;
-                    matches!(op, Opcode::JumpNonZero | Opcode::JumpZero) && (i - op_i) == 2
-                } =>
-            {
-                addr()
-            }
-
-            _ => None,
-        }
-    }
-
-    pub fn assign_labels(&mut self) {
-        let mut labels = iter_labels();
-
-        let refs = (0..self.len())
-            .filter_map(|i| self.get_labeled_addr(i).map(|addr| (i, addr)))
-            .fold(BTreeMap::new(), |mut map, (i, addr)| {
-                map.entry(addr).or_insert_with(Vec::new).push(i);
-                map
-            });
-
-        for (addr, indexes) in refs {
-            let labelfn = || labels.next().unwrap();
-            match &self.slots[addr].mark {
-                Some(Mark::Opcode(_)) => {
-                    // Assign a new label to the referring parameters.
-                    let label = self.get_or_set_label(addr, labelfn);
-                    for i in indexes {
-                        self.upgrade_param(i, label.clone(), 0);
-                    }
-                }
-                Some(Mark::Param(_)) => {
-                    let this_op = self.instr_addr(addr).unwrap();
-                    let prev_op = self.instr_addr(this_op);
-
-                    // If all the referrers are in the previous instruction then
-                    // we can use the `ip` label.
-                    let label = if indexes.iter().all(|i| self.instr_addr(*i) == prev_op) {
-                        Label::InstructionPointer
-                    } else {
-                        self.get_or_set_label(this_op, labelfn)
-                    };
-
-                    // Assign label to the referring parameters with an offset.
-                    let offset = addr - this_op;
-                    for i in indexes {
-                        self.upgrade_param(i, label.clone(), offset as i64);
-                    }
-                }
-                None => {
-                    // The label is referring to some unknown thing 🤔
-                    // For now just assume that it is data, it could potentially
-                    // be part of an unmarked instruction though.
-                    let label = self.get_or_set_label(addr, labelfn);
-                    for i in indexes {
-                        self.upgrade_param(i, label.clone(), 0);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn into_ast(mut self) -> Program {
-        self.assign_labels();
-
+    pub fn into_ast(self) -> Ast {
         let mut ptr = 0;
         let mut stmts = Vec::new();
 
@@ -409,17 +285,6 @@ impl Memory {
             }
         }
 
-        Program { stmts }
+        Ast { stmts }
     }
-}
-
-fn iter_labels() -> impl Iterator<Item = Label> {
-    let singles = ('a'..'z')
-        .filter(|&c| c != 'l')
-        .map(|c| Label::Fixed(Rc::new(String::from(c))));
-    let doubles = ('a'..='z')
-        .filter(|&c| c != 'l')
-        .flat_map(|e| iter::repeat(e).zip('0'..='9'))
-        .map(|(a, b)| Label::Fixed(Rc::new(format!("{}{}", a, b))));
-    singles.chain(doubles)
 }
