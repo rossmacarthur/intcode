@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
+use std::iter;
 
 use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
 
@@ -76,6 +77,20 @@ impl Display for Instr {
                         write!(f, "{}", p)?
                     } else {
                         write!(f, "{}, ", p)?
+                    }
+                }
+                Ok(())
+            }
+            Instr::Mutable(value, params) => {
+                write!(f, "DB ")?;
+                for (i, d) in iter::once(value as &dyn Display)
+                    .chain(params.iter().map(|p| p as &dyn Display))
+                    .enumerate()
+                {
+                    if i == params.len() {
+                        write!(f, "{}", d)?;
+                    } else {
+                        write!(f, "{}, ", d)?;
                     }
                 }
                 Ok(())

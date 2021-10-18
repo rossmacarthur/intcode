@@ -23,6 +23,7 @@ fn assemble(asm: &str) -> String {
         .join(",")
 }
 
+#[track_caller]
 fn assert(asm: &str, intcode: &str, runs: impl IntoIterator<Item = Run>) {
     assert_eq!(disassemble(intcode, runs), asm);
     assert_eq!(assemble(asm), intcode);
@@ -42,9 +43,7 @@ d: DB 50
     assert(asm, intcode, Run::once());
 }
 
-// TODO: Figure out how to deal with programs that change instructions
 #[test]
-#[ignore]
 fn advent_day5_example_immediate() {
     let asm = "\
 MUL a, #3, a
@@ -127,11 +126,11 @@ d: DB 9
 fn advent_day5_example_jump_immediate() {
     let asm = "\
 IN ip+1
-JNZ #-1, #9
-ADD #0, #0, a
-OUT a
+JNZ #-1, #a
+ADD #0, #0, b
+a: OUT b
 HLT
-a: DB 1
+b: DB 1
 ";
     let intcode = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
     assert(asm, intcode, Run::once());

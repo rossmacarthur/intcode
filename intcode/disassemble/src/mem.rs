@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
+use std::iter;
 use std::rc::Rc;
 
 use crate::ast::{Instr, Label, Mode, Param, Program, RawParam, Stmt};
 
 /// An instruction type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Opcode {
     Add,
     Multiply,
@@ -16,6 +17,7 @@ pub enum Opcode {
     Output,
     AdjustRelativeBase,
     Halt,
+    Mutable,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +41,34 @@ struct Slot {
 #[derive(Debug, Clone)]
 pub struct Memory {
     slots: Vec<Slot>,
+}
+
+impl Opcode {
+    fn value(&self) -> i64 {
+        match self {
+            Self::Add => 1,
+            Self::Multiply => 2,
+            Self::Input => 3,
+            Self::Output => 4,
+            Self::JumpNonZero => 5,
+            Self::JumpZero => 6,
+            Self::LessThan => 7,
+            Self::Equal => 8,
+            Self::AdjustRelativeBase => 9,
+            Self::Halt => 99,
+            i => panic!("no opcode for `{:?}`", i),
+        }
+    }
+}
+
+impl Mark {
+    fn upgrade_param(&mut self, label: Label, offset: i64) {
+        let mode = match self {
+            Self::Param(Param::Number(mode, _)) => *mode,
+            _ => panic!("expected number parameter"),
+        };
+        *self = Self::Param(Param::Label(mode, label, offset));
+    }
 }
 
 impl Slot {
@@ -87,22 +117,32 @@ impl Memory {
         self.slots.get(addr).and_then(|slot| slot.original)
     }
 
-    fn mark(&mut self, addr: usize, mark: Mark) {
-        match &mut self.slots[addr].mark {
-            Some(ref m) if *m == mark => {}
-            m @ None => *m = Some(mark),
-            Some(m) => {
-                panic!(
-                    "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
-                    addr, mark, m
-                );
-            }
-        }
-    }
-
     pub fn mark_opcode(&mut self, addr: usize, opcode: Opcode) {
-        match self.slots[addr].original {
-            Some(_) => self.mark(addr, Mark::Opcode(opcode)),
+        let slot = &mut self.slots[addr];
+        match slot.original {
+            Some(orig) => {
+                match &mut slot.mark {
+                    // This address is already marked with the same opcode 👍.
+                    Some(Mark::Opcode(o)) if *o == opcode => {}
+                    // If this address is already marked with a different opcode
+                    // then mark it as a "mutable" opcode.
+                    Some(Mark::Opcode(o)) => *o = Opcode::Mutable,
+                    // We are marking this address with an opcode that does not
+                    // match the original value, so this is also a "mutable"
+                    // opcode.
+                    m @ None if orig % 100 != opcode.value() => *m = Some(Mark::Opcode(Opcode::Mutable)),
+                    // This address is unmarked, mark it with the given opcode.
+                    m @ None => *m = Some(Mark::Opcode(opcode)),
+                    // Otherwise, this is address is already marked as something
+                    // else, so we panic.
+                    Some(m) => {
+                        panic!(
+                            "tried to mark address `{}` with opcode `{:?}`, but it is already marked with `{:?}`",
+                            addr, opcode, m
+                        );
+                    }
+                }
+            },
             None => panic!(
                 "tried to mark address `{}` with opcode `{:?}` but it doesn't exist in the original",
                 addr, opcode
@@ -111,8 +151,25 @@ impl Memory {
     }
 
     pub fn mark_param(&mut self, addr: usize, mode: Mode) {
-        match self.slots[addr].original {
-            Some(value) => self.mark(addr, Mark::Param(Param::Number(mode, value))),
+        let slot = &mut self.slots[addr];
+        match slot.original {
+            Some(value) => {
+                let mark = Mark::Param(Param::Number(mode, value));
+                match &mut slot.mark {
+                    // This address is already marked with the same param 👍.
+                    Some(ref m) if *m == mark => {}
+                    // This address is unmarked, mark it with the given param.
+                    m @ None => *m = Some(mark),
+                    // Otherwise, this is address is already marked as something
+                    // else, so we panic.
+                    Some(m) => {
+                        panic!(
+                            "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
+                            addr, mark, m
+                        );
+                    }
+                }
+            },
             None => panic!(
                 "tried to mark address `{}` with parameter `{:?}` but it doesn't exist in the original",
                 addr, mode
@@ -121,66 +178,84 @@ impl Memory {
     }
 
     fn upgrade_param(&mut self, addr: usize, label: Label, offset: i64) {
-        let mark = self.slots[addr].mark.as_mut().unwrap();
-        let mode = match mark {
-            Mark::Param(Param::Number(mode, _)) => *mode,
-            _ => todo!(),
-        };
-        *mark = Mark::Param(Param::Label(mode, label, offset));
+        self.slots[addr]
+            .mark
+            .as_mut()
+            .unwrap()
+            .upgrade_param(label, offset);
     }
 
-    fn get_param(&self, addr: usize) -> Param {
-        match &self.slots[addr].mark {
-            Some(Mark::Param(param)) => param.clone(),
-            m => panic!("no param marked at `{}`, found `{:?}`", addr, m),
-        }
+    fn get_param(&self, addr: usize) -> Option<Param> {
+        self.slots.get(addr).and_then(|slot| match &slot.mark {
+            Some(Mark::Param(param)) => Some(param.clone()),
+            _ => None,
+        })
     }
 
     fn get_or_set_label(&mut self, addr: usize, with: impl FnOnce() -> Label) -> Label {
         self.slots[addr].label.get_or_insert_with(with).clone()
     }
 
-    /// Finds the address of the preceding opcode.
-    fn opcode_ctx(&self, mut addr: usize) -> Option<usize> {
+    /// Finds the preceding opcode.
+    fn instr(&self, mut addr: usize) -> Option<(usize, Opcode)> {
         while addr > 0 {
             addr -= 1;
-            if matches!(self.slots[addr].mark, Some(Mark::Opcode(_))) {
-                return Some(addr);
+            if let Some(Mark::Opcode(opcode)) = self.slots[addr].mark {
+                return Some((addr, opcode));
             }
         }
         None
     }
 
-    pub fn assign_positional_labels(&mut self) {
-        let mut iter = ('a'..='z').map(|c| Label::Fixed(Rc::new(String::from(c))));
+    /// Finds the preceding opcode's address.
+    fn instr_addr(&self, addr: usize) -> Option<usize> {
+        self.instr(addr).map(|(a, _)| a)
+    }
 
-        let refs = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, slot)| {
-                // Find positional parameters, these refer to addresses in
-                // the program.
-                let is_pos_param = matches!(
-                    slot.mark,
-                    Some(Mark::Param(Param::Number(Mode::Positional, _)))
-                );
-                // We only care about addresses that exist in the original
-                // program. Exclude 0 because its often used as a placeholder
-                // value.
-                let is_address = matches!(
-                    slot.original,
-                    Some(addr) if addr > 0 && self.get_original(addr as usize).is_some()
-                );
-                (is_pos_param && is_address).then(|| (i, slot.original.unwrap() as usize))
-            })
+    fn get_labeled_addr(&self, i: usize) -> Option<usize> {
+        let slot = self.slots.get(i)?;
+
+        // We only care about addresses that exist in the original program.
+        // Exclude 0 because its often used as a placeholder value.
+        let addr = || match slot.original {
+            Some(addr) if addr > 0 && self.get_original(addr as usize).is_some() => {
+                Some(addr as usize)
+            }
+            _ => None,
+        };
+
+        match slot.mark {
+            // Find positional parameters, these refer to addresses in the
+            // program.
+            Some(Mark::Param(Param::Number(Mode::Positional, _))) => addr(),
+
+            // Find immediate parameters, if the instruction is a JNZ or JZ
+            // the second parameter will likely refer to an address.
+            Some(Mark::Param(Param::Number(Mode::Immediate, _)))
+                if {
+                    let (op_i, op) = self.instr(i)?;
+                    matches!(op, Opcode::JumpNonZero | Opcode::JumpZero) && (i - op_i) == 2
+                } =>
+            {
+                addr()
+            }
+
+            _ => None,
+        }
+    }
+
+    pub fn assign_labels(&mut self) {
+        let mut labels = iter_labels();
+
+        let refs = (0..self.len())
+            .filter_map(|i| self.get_labeled_addr(i).map(|addr| (i, addr)))
             .fold(BTreeMap::new(), |mut map, (i, addr)| {
                 map.entry(addr).or_insert_with(Vec::new).push(i);
                 map
             });
 
         for (addr, indexes) in refs {
-            let labelfn = || iter.next().unwrap();
+            let labelfn = || labels.next().unwrap();
             match &self.slots[addr].mark {
                 Some(Mark::Opcode(_)) => {
                     // Assign a new label to the referring parameters.
@@ -190,19 +265,19 @@ impl Memory {
                     }
                 }
                 Some(Mark::Param(_)) => {
-                    let this_opcode = self.opcode_ctx(addr).unwrap();
-                    let prev_opcode = self.opcode_ctx(this_opcode);
+                    let this_op = self.instr_addr(addr).unwrap();
+                    let prev_op = self.instr_addr(this_op);
 
                     // If all the referrers are in the previous instruction then
                     // we can use the `ip` label.
-                    let label = if indexes.iter().all(|i| self.opcode_ctx(*i) == prev_opcode) {
+                    let label = if indexes.iter().all(|i| self.instr_addr(*i) == prev_op) {
                         Label::InstructionPointer
                     } else {
-                        self.get_or_set_label(this_opcode, labelfn)
+                        self.get_or_set_label(this_op, labelfn)
                     };
 
                     // Assign label to the referring parameters with an offset.
-                    let offset = addr - this_opcode;
+                    let offset = addr - this_op;
                     for i in indexes {
                         self.upgrade_param(i, label.clone(), offset as i64);
                     }
@@ -221,15 +296,20 @@ impl Memory {
     }
 
     pub fn into_ast(mut self) -> Program {
-        self.assign_positional_labels();
+        self.assign_labels();
 
         let mut ptr = 0;
         let mut stmts = Vec::new();
 
-        while let Some(slot) = self.slots.get(ptr) {
+        while let Some(
+            slot @ Slot {
+                original: Some(_), ..
+            },
+        ) = self.slots.get(ptr)
+        {
             match &slot.mark {
                 Some(Mark::Opcode(opcode)) => {
-                    let param = |i: usize| self.get_param(ptr + i);
+                    let param = |i: usize| self.get_param(ptr + i).unwrap();
                     let instr = match opcode {
                         Opcode::Add => {
                             let a = param(1);
@@ -290,6 +370,14 @@ impl Memory {
                             ptr += 1;
                             Instr::Halt
                         }
+                        Opcode::Mutable => {
+                            let params: Vec<_> = iter::from_fn(|| {
+                                ptr += 1;
+                                self.get_param(ptr).and_then(|_| self.slots[ptr].original)
+                            })
+                            .collect();
+                            Instr::Mutable(slot.original.unwrap(), params)
+                        }
                     };
                     stmts.push(Stmt {
                         label: slot.label.clone(),
@@ -298,14 +386,22 @@ impl Memory {
                 }
                 None => {
                     // For now assume unmarked data is just raw bytes 🤷‍♂️
-                    ptr += 1;
-                    if let Some(orig) = slot.original {
-                        let instr = Instr::Data(vec![RawParam::Number(orig)]);
-                        stmts.push(Stmt {
-                            label: slot.label.clone(),
-                            instr,
-                        })
-                    }
+                    let label = slot.label.clone();
+                    let mut raw_params = vec![RawParam::Number(slot.original.unwrap())];
+                    raw_params.extend(iter::from_fn(|| {
+                        ptr += 1;
+                        match &self.slots.get(ptr) {
+                            Some(Slot {
+                                original: Some(orig),
+                                mark: None,
+                                label: None,
+                                ..
+                            }) => Some(RawParam::Number(*orig)),
+                            _ => None,
+                        }
+                    }));
+                    let instr = Instr::Data(raw_params);
+                    stmts.push(Stmt { label, instr })
                 }
                 Some(mark) => {
                     panic!("unexpected marked address {:?}", mark);
@@ -315,4 +411,15 @@ impl Memory {
 
         Program { stmts }
     }
+}
+
+fn iter_labels() -> impl Iterator<Item = Label> {
+    let singles = ('a'..'z')
+        .filter(|&c| c != 'l')
+        .map(|c| Label::Fixed(Rc::new(String::from(c))));
+    let doubles = ('a'..='z')
+        .filter(|&c| c != 'l')
+        .flat_map(|e| iter::repeat(e).zip('0'..='9'))
+        .map(|(a, b)| Label::Fixed(Rc::new(format!("{}{}", a, b))));
+    singles.chain(doubles)
 }

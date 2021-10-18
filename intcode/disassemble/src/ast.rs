@@ -70,6 +70,8 @@ pub enum Instr {
 
     /// (Pseudo) Places raw data in the program.
     Data(Vec<RawParam>),
+    /// (Pseudo) Represents a mutable instruction.
+    Mutable(i64, Vec<i64>),
 }
 
 /// A single line in a program.
