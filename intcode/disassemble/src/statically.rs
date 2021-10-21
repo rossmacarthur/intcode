@@ -1,8 +1,14 @@
 use crate::ast::Mode;
-use crate::program::{Opcode, Program, Slot};
+use crate::program::{LabelType, Opcode, Program};
 
 fn try_mark_instr(p: &mut Program, ptr: usize) -> Option<usize> {
-    let instr = p.slots[ptr].raw;
+    let slot = &p.slots[ptr];
+
+    if slot.mark.is_some() {
+        return None;
+    }
+
+    let instr = slot.raw;
     let opcode = Opcode::from_value(instr % 100)?;
     let ps = opcode.params();
 
@@ -44,12 +50,25 @@ fn try_mark_instr(p: &mut Program, ptr: usize) -> Option<usize> {
 /// parameters. This has a lot of false positives, so it best to mark using the
 /// dynamic marker first.
 pub fn mark(p: &mut Program) {
-    let mut ptr = 0;
-    while ptr < p.len() {
-        if let Slot { mark: None, .. } = p.slots[ptr] {
-            ptr += try_mark_instr(p, ptr).unwrap_or(1);
-        } else {
-            ptr += 1;
-        }
+    // First mark instructions at addresses marked with LabelType::Instr
+    let a = p.slots.iter().enumerate().filter_map(|(i, slot)| {
+        (slot.mark.is_none() && matches!(slot.label_type, Some(LabelType::Instr))).then(|| i)
+    });
+    // Then mark instructions at addresses *not* marked with LabelType::Data
+    let b = p.slots.iter().enumerate().filter_map(|(i, slot)| {
+        (slot.mark.is_none() && !matches!(slot.label_type, Some(LabelType::Data))).then(|| i)
+    });
+    let indexes: Vec<_> = a.chain(b).collect();
+    for i in indexes {
+        try_mark_instr(p, i);
+    }
+
+    // Finally we mark any remaining addresses as data
+    let i = p.slots.iter().enumerate().filter_map(|(i, slot)| {
+        (slot.mark.is_none() && matches!(slot.label_type, Some(LabelType::Data))).then(|| i)
+    });
+    let indexes: Vec<_> = i.collect();
+    for i in indexes {
+        p.mark_data(i);
     }
 }

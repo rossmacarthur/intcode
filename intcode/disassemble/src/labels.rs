@@ -3,7 +3,7 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::ast::{Label, Mode, Param};
-use crate::program::{Mark, Opcode, Program};
+use crate::program::{LabelType, Mark, Opcode, Program};
 
 impl Mark {
     fn label_param(&mut self, label: Label, offset: i64) {
@@ -22,6 +22,10 @@ impl Program {
             .as_mut()
             .unwrap()
             .label_param(label, offset);
+    }
+
+    fn set_label_type(&mut self, addr: usize, label_type: LabelType) {
+        self.slots[addr].label_type = Some(label_type);
     }
 
     fn get_or_set_label(&mut self, addr: usize, with: impl FnOnce() -> Label) -> Label {
@@ -45,7 +49,8 @@ impl Program {
     }
 }
 
-fn iter_labels() -> impl Iterator<Item = Label> {
+/// A sequence of unique labels to use when labeling instructions.
+pub fn unique() -> impl Iterator<Item = Label> {
     let singles = ('a'..'z')
         .filter(|&c| c != 'l')
         .map(|c| Label::Fixed(Rc::new(String::from(c))));
@@ -56,7 +61,7 @@ fn iter_labels() -> impl Iterator<Item = Label> {
     singles.chain(doubles)
 }
 
-fn get_labeled_addr(p: &Program, i: usize) -> Option<usize> {
+fn get_labeled_addr(p: &Program, i: usize) -> Option<(LabelType, usize)> {
     let slot = &p.slots[i];
 
     // Exclude 0 because its often used as a placeholder value.
@@ -70,7 +75,9 @@ fn get_labeled_addr(p: &Program, i: usize) -> Option<usize> {
     match slot.mark {
         // Find positional parameters, these refer to addresses in the
         // program.
-        Some(Mark::Param(Param::Number(Mode::Positional, _))) => addr(),
+        Some(Mark::Param(Param::Number(Mode::Positional, _))) => {
+            addr().map(|a| (LabelType::Data, a))
+        }
 
         // Find immediate parameters, if the instruction is a JNZ or JZ
         // the second parameter will likely refer to an address.
@@ -80,30 +87,45 @@ fn get_labeled_addr(p: &Program, i: usize) -> Option<usize> {
                 matches!(op, Opcode::JumpNonZero | Opcode::JumpZero) && (i - op_i) == 2
             } =>
         {
-            addr()
+            addr().map(|a| (LabelType::Instr, a))
         }
 
         _ => None,
     }
 }
 
-pub fn assign(p: &mut Program) {
-    let mut labels = iter_labels();
-
+pub fn assign(p: &mut Program, mut labels: impl Iterator<Item = Label>) {
     let refs = (0..p.len())
         .filter_map(|i| get_labeled_addr(p, i).map(|addr| (i, addr)))
-        .fold(BTreeMap::new(), |mut map, (i, addr)| {
-            map.entry(addr).or_insert_with(Vec::new).push(i);
+        .fold(BTreeMap::new(), |mut map, (i, (ty, addr))| {
+            map.entry(addr).or_insert_with(Vec::new).push((ty, i));
             map
         });
 
     for (addr, indexes) in refs {
         let labelfn = || labels.next().unwrap();
+
+        let set_label_type = |p: &mut Program| {
+            // If all the referrer types are the same then we can add the
+            // label type to the address.
+            if indexes.windows(2).all(|w| w[0].0 == w[1].0) {
+                let label_type = indexes[0].0;
+                match &p.slots[addr].label_type {
+                    &Some(lt) if lt == label_type => {}
+                    Some(lt) => log::warn!("address {} already has label type {:?}", addr, lt),
+                    None => p.set_label_type(addr, label_type),
+                }
+            } else {
+                log::warn!("address {} has different referrer types", addr);
+            }
+        };
+
         match &p.slots[addr].mark {
             Some(Mark::Opcode(_)) => {
                 // Assign a new label to the referring parameters.
                 let label = p.get_or_set_label(addr, labelfn);
-                for i in indexes {
+                set_label_type(p);
+                for (_, i) in indexes {
                     p.label_param(i, label.clone(), 0);
                 }
             }
@@ -113,24 +135,27 @@ pub fn assign(p: &mut Program) {
 
                 // If all the referrers are in the previous instruction then
                 // we can use the `ip` label.
-                let label = if indexes.iter().all(|i| p.instr_addr(*i) == prev_op) {
+                let label = if indexes.iter().all(|(_, i)| p.instr_addr(*i) == prev_op) {
                     Label::InstructionPointer
                 } else {
                     p.get_or_set_label(this_op, labelfn)
                 };
 
+                set_label_type(p);
+
                 // Assign label to the referring parameters with an offset.
                 let offset = addr - this_op;
-                for i in indexes {
+                for (_, i) in indexes {
                     p.label_param(i, label.clone(), offset as i64);
                 }
             }
-            None => {
-                // The label is referring to some unknown thing 🤔
-                // For now just assume that it is data, it could potentially
+            Some(Mark::Data) | None => {
+                // The label is referring to some data or unknown thing.
+                // For now just assume unknown is data, it could potentially
                 // be part of an unmarked instruction though.
                 let label = p.get_or_set_label(addr, labelfn);
-                for i in indexes {
+                set_label_type(p);
+                for (_, i) in indexes {
                     p.label_param(i, label.clone(), 0);
                 }
             }

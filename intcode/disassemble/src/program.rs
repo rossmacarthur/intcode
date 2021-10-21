@@ -18,10 +18,21 @@ pub enum Opcode {
     Mutable,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LabelType {
+    /// The referrer was the second parameter in a jump instruction so this
+    /// address is likely to be an instruction.
+    Instr,
+    /// The referrer was a positional parameter so the address is likely to be
+    /// data.
+    Data,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mark {
     Opcode(Opcode),
     Param(Param),
+    Data,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -30,6 +41,8 @@ pub struct Slot {
     pub raw: i64,
     /// An optional mark if we figure out what the memory looks like is.
     pub mark: Option<Mark>,
+    /// An optional label type, this can be used to improve static analysis.
+    pub label_type: Option<LabelType>,
     /// An optional label if we add one.
     pub label: Option<Label>,
 }
@@ -107,8 +120,7 @@ impl Program {
             .into_iter()
             .map(|raw| Slot {
                 raw,
-                mark: None,
-                label: None,
+                ..Default::default()
             })
             .collect();
         Self { slots }
@@ -120,6 +132,12 @@ impl Program {
 
     pub fn len(&self) -> usize {
         self.slots.len()
+    }
+
+    pub fn percent_marked(&self) -> f64 {
+        let count = self.slots.iter().filter(|slot| slot.mark.is_some()).count() as f64;
+        let total = self.len() as f64;
+        100.0 * count / total
     }
 
     pub fn mark_opcode(&mut self, addr: usize, opcode: Opcode) {
@@ -174,6 +192,28 @@ impl Program {
             Some(m) => panic!(
                 "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
                 addr, mark, m
+            ),
+        }
+    }
+
+    pub fn mark_data(&mut self, addr: usize) {
+        if addr >= self.len() {
+            panic!(
+                "tried to mark address `{}` as data but it doesn't exist in the original",
+                addr
+            )
+        }
+        let slot = &mut self.slots[addr];
+        match &mut slot.mark {
+            // This address is already marked with the same param 👍.
+            Some(Mark::Data) => {}
+            // This address is unmarked, mark it with the given param.
+            m @ None => *m = Some(Mark::Data),
+            // Otherwise, this is address is already marked as something
+            // else, so we panic.
+            Some(m) => panic!(
+                "tried to mark address `{}` as data, but it is already marked with `{:?}`",
+                addr, m
             ),
         }
     }
@@ -267,8 +307,7 @@ impl Program {
                         instr,
                     });
                 }
-                None => {
-                    // For now assume unmarked data is just raw bytes 🤷‍♂️
+                Some(Mark::Data) => {
                     let label = slot.label.clone();
                     let mut raw_params = vec![RawParam::Number(slot.raw)];
                     raw_params.extend(iter::from_fn(|| {
@@ -288,6 +327,9 @@ impl Program {
                 }
                 Some(mark) => {
                     panic!("unexpected marked address {:?}", mark);
+                }
+                None => {
+                    panic!("unmarked address at {:?}", ptr);
                 }
             }
         }
