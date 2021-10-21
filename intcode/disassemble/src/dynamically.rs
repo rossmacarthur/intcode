@@ -87,7 +87,7 @@ impl<'a> Computer<'a> {
         let ptr = self.ptr + i;
         let divs = [10, 100, 1_000, 10_000];
         let mode = opcode / divs[i] % 10;
-        let mode = Mode::from_value(mode).ok_or_else(|| Error::UnknownMode { mode })?;
+        let mode = Mode::from_value(mode).ok_or(Error::UnknownMode { mode })?;
         self.prog.mark_param(ptr, mode);
         match mode {
             Mode::Positional => Ok(cast(self.mem_get(ptr))?),

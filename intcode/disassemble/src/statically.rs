@@ -1,7 +1,7 @@
 use crate::ast::Mode;
 use crate::program::{Opcode, Program, Slot};
 
-fn try_mark_instr_at(p: &mut Program, ptr: usize) -> Option<usize> {
+fn try_mark_instr(p: &mut Program, ptr: usize) -> Option<usize> {
     let instr = p.slots[ptr].raw;
     let opcode = Opcode::from_value(instr % 100)?;
     let ps = opcode.params();
@@ -14,13 +14,21 @@ fn try_mark_instr_at(p: &mut Program, ptr: usize) -> Option<usize> {
     }
     // Check that there are available parameter slots and they are unmarked.
     let mut modes = Vec::new();
-    for i in 0..ps {
+    for (i, div) in divs.iter().enumerate().take(ps) {
         let addr = ptr + i + 1;
         if p.slots.get(addr)?.mark.is_some() {
             return None;
         }
-        let mode = Mode::from_value(instr / divs[i] % 10)?;
+        let mode = Mode::from_value(instr / div % 10)?;
         modes.push((addr, mode));
+    }
+
+    if !modes.is_empty() && modes.iter().all(|(_, m)| matches!(m, Mode::Positional)) {
+        log::warn!(
+            "all the modes are positional for {:?} instruction at address {}",
+            opcode,
+            ptr
+        );
     }
 
     // Everything looks good, mark the instruction and parameters!
@@ -39,7 +47,7 @@ pub fn mark(p: &mut Program) {
     let mut ptr = 0;
     while ptr < p.len() {
         if let Slot { mark: None, .. } = p.slots[ptr] {
-            ptr += try_mark_instr_at(p, ptr).unwrap_or(1);
+            ptr += try_mark_instr(p, ptr).unwrap_or(1);
         } else {
             ptr += 1;
         }

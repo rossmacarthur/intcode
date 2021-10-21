@@ -195,6 +195,7 @@ name = "intcode-disassemble"
 version = "0.0.0"
 dependencies = [
  "intcode-assemble",
+ "log",
  "pretty_assertions",
  "thiserror",
 ]
