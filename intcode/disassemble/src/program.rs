@@ -26,10 +26,8 @@ pub enum Mark {
 
 #[derive(Debug, Clone, Default)]
 pub struct Slot {
-    /// The original value before the program has run.
-    pub original: Option<i64>,
-    /// The current value during a program run.
-    pub current: i64,
+    /// The raw value in the original program.
+    pub value: i64,
     /// An optional mark if we figure out what the memory looks like is.
     pub mark: Option<Mark>,
     /// An optional label if we add one.
@@ -60,19 +58,12 @@ impl Opcode {
     }
 }
 
-impl Slot {
-    fn reset(&mut self) {
-        self.current = self.original.unwrap_or(0);
-    }
-}
-
 impl Program {
     pub fn new(intcode: Vec<i64>) -> Self {
         let slots = intcode
             .into_iter()
             .map(|n| Slot {
-                original: Some(n),
-                current: n,
+                value: n,
                 mark: None,
                 label: None,
             })
@@ -80,89 +71,69 @@ impl Program {
         Self { slots }
     }
 
-    pub fn reset(&mut self) {
-        for slot in &mut self.slots {
-            slot.reset();
-        }
+    pub fn original(&self) -> Vec<i64> {
+        self.slots.iter().map(|slot| slot.value).collect()
     }
 
     pub fn len(&self) -> usize {
         self.slots.len()
     }
 
-    pub fn resize(&mut self, new_len: usize) {
-        self.slots.resize_with(new_len, Slot::default)
-    }
-
-    pub fn get(&self, addr: usize) -> Option<i64> {
-        self.slots.get(addr).map(|slot| slot.current)
-    }
-
-    pub fn get_mut(&mut self, addr: usize) -> Option<&mut i64> {
-        self.slots.get_mut(addr).map(|slot| &mut slot.current)
-    }
-
-    pub fn get_original(&self, addr: usize) -> Option<i64> {
-        self.slots.get(addr).and_then(|slot| slot.original)
-    }
-
     pub fn mark_opcode(&mut self, addr: usize, opcode: Opcode) {
-        let slot = &mut self.slots[addr];
-        match slot.original {
-            Some(orig) => {
-                match &mut slot.mark {
-                    // This address is already marked with the same opcode 👍.
-                    Some(Mark::Opcode(o)) if *o == opcode => {}
-                    // If this address is already marked with a different opcode
-                    // then mark it as a "mutable" opcode.
-                    Some(Mark::Opcode(o)) => *o = Opcode::Mutable,
-                    // We are marking this address with an opcode that does not
-                    // match the original value, so this is also a "mutable"
-                    // opcode.
-                    m @ None if orig % 100 != opcode.value() => *m = Some(Mark::Opcode(Opcode::Mutable)),
-                    // This address is unmarked, mark it with the given opcode.
-                    m @ None => *m = Some(Mark::Opcode(opcode)),
-                    // Otherwise, this is address is already marked as something
-                    // else, so we panic.
-                    Some(m) => {
-                        panic!(
-                            "tried to mark address `{}` with opcode `{:?}`, but it is already marked with `{:?}`",
-                            addr, opcode, m
-                        );
-                    }
-                }
-            },
-            None => panic!(
+        if addr >= self.len() {
+            panic!(
                 "tried to mark address `{}` with opcode `{:?}` but it doesn't exist in the original",
                 addr, opcode
-            ),
+            )
+        }
+        let slot = &mut self.slots[addr];
+        match &mut slot.mark {
+            // This address is already marked with the same opcode 👍.
+            Some(Mark::Opcode(o)) if *o == opcode => {}
+            // If this address is already marked with a different opcode
+            // then mark it as a "mutable" opcode.
+            Some(Mark::Opcode(o)) => *o = Opcode::Mutable,
+            // We are marking this address with an opcode that does not
+            // match the original value, so this is also a "mutable"
+            // opcode.
+            m @ None if slot.value % 100 != opcode.value() => {
+                *m = Some(Mark::Opcode(Opcode::Mutable))
+            }
+            // This address is unmarked, mark it with the given opcode.
+            m @ None => *m = Some(Mark::Opcode(opcode)),
+            // Otherwise, this is address is already marked as something
+            // else, so we panic.
+            Some(m) => {
+                panic!(
+                    "tried to mark address `{}` with opcode `{:?}`, but it is already marked with `{:?}`",
+                    addr, opcode, m
+                );
+            }
         }
     }
 
     pub fn mark_param(&mut self, addr: usize, mode: Mode) {
-        let slot = &mut self.slots[addr];
-        match slot.original {
-            Some(value) => {
-                let mark = Mark::Param(Param::Number(mode, value));
-                match &mut slot.mark {
-                    // This address is already marked with the same param 👍.
-                    Some(ref m) if *m == mark => {}
-                    // This address is unmarked, mark it with the given param.
-                    m @ None => *m = Some(mark),
-                    // Otherwise, this is address is already marked as something
-                    // else, so we panic.
-                    Some(m) => {
-                        panic!(
-                            "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
-                            addr, mark, m
-                        );
-                    }
-                }
-            },
-            None => panic!(
+        if addr >= self.len() {
+            panic!(
                 "tried to mark address `{}` with parameter `{:?}` but it doesn't exist in the original",
                 addr, mode
-            ),
+            )
+        }
+        let slot = &mut self.slots[addr];
+        let mark = Mark::Param(Param::Number(mode, slot.value));
+        match &mut slot.mark {
+            // This address is already marked with the same param 👍.
+            Some(ref m) if *m == mark => {}
+            // This address is unmarked, mark it with the given param.
+            m @ None => *m = Some(mark),
+            // Otherwise, this is address is already marked as something
+            // else, so we panic.
+            Some(m) => {
+                panic!(
+                    "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
+                    addr, mark, m
+                );
+            }
         }
     }
 
@@ -177,12 +148,7 @@ impl Program {
         let mut ptr = 0;
         let mut stmts = Vec::new();
 
-        while let Some(
-            slot @ Slot {
-                original: Some(_), ..
-            },
-        ) = self.slots.get(ptr)
-        {
+        while let Some(slot) = self.slots.get(ptr) {
             match &slot.mark {
                 Some(Mark::Opcode(opcode)) => {
                     let param = |i: usize| self.get_param(ptr + i).unwrap();
@@ -249,10 +215,10 @@ impl Program {
                         Opcode::Mutable => {
                             let params: Vec<_> = iter::from_fn(|| {
                                 ptr += 1;
-                                self.get_param(ptr).and_then(|_| self.slots[ptr].original)
+                                self.get_param(ptr).map(|_| self.slots[ptr].value)
                             })
                             .collect();
-                            Instr::Mutable(slot.original.unwrap(), params)
+                            Instr::Mutable(slot.value, params)
                         }
                     };
                     stmts.push(Stmt {
@@ -263,16 +229,16 @@ impl Program {
                 None => {
                     // For now assume unmarked data is just raw bytes 🤷‍♂️
                     let label = slot.label.clone();
-                    let mut raw_params = vec![RawParam::Number(slot.original.unwrap())];
+                    let mut raw_params = vec![RawParam::Number(slot.value)];
                     raw_params.extend(iter::from_fn(|| {
                         ptr += 1;
                         match &self.slots.get(ptr) {
                             Some(Slot {
-                                original: Some(orig),
+                                value: original,
                                 mark: None,
                                 label: None,
                                 ..
-                            }) => Some(RawParam::Number(*orig)),
+                            }) => Some(RawParam::Number(*original)),
                             _ => None,
                         }
                     }));

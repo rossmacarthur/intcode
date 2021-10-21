@@ -32,7 +32,8 @@ enum State {
 
 #[derive(Debug)]
 struct Computer<'a> {
-    mem: &'a mut Program,
+    prog: &'a mut Program,
+    mem: Vec<i64>,
     ptr: usize,
     relative_base: i64,
     input: VecDeque<i64>,
@@ -57,8 +58,10 @@ fn cast(num: i64) -> Result<usize> {
 
 impl<'a> Computer<'a> {
     fn new(prog: &'a mut Program) -> Self {
+        let mem = prog.original();
         Self {
-            mem: prog,
+            prog,
+            mem,
             ptr: 0,
             relative_base: 0,
             input: VecDeque::new(),
@@ -70,12 +73,12 @@ impl<'a> Computer<'a> {
     }
 
     fn mem_get(&self, addr: usize) -> i64 {
-        self.mem.get(addr).unwrap_or(0)
+        self.mem.get(addr).copied().unwrap_or(0)
     }
 
     fn mem_get_mut(&mut self, addr: usize) -> &mut i64 {
         let new_len = max(self.mem.len(), addr + 1);
-        self.mem.resize(new_len);
+        self.mem.resize(new_len, 0);
         self.mem.get_mut(addr).unwrap()
     }
 
@@ -84,15 +87,15 @@ impl<'a> Computer<'a> {
         let ptr = self.ptr + i;
         match opcode / (10i64.pow((1 + i) as u32)) % 10 {
             0 => {
-                self.mem.mark_param(ptr, Mode::Positional);
+                self.prog.mark_param(ptr, Mode::Positional);
                 Ok(cast(self.mem_get(ptr))?)
             }
             1 => {
-                self.mem.mark_param(ptr, Mode::Immediate);
+                self.prog.mark_param(ptr, Mode::Immediate);
                 Ok(ptr)
             }
             2 => {
-                self.mem.mark_param(ptr, Mode::Relative);
+                self.prog.mark_param(ptr, Mode::Relative);
                 Ok(cast(self.relative_base + self.mem_get(ptr))?)
             }
             mode => Err(Error::UnknownMode { mode }),
@@ -111,17 +114,17 @@ impl<'a> Computer<'a> {
         loop {
             match self.mem_get(self.ptr) % 100 {
                 1 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Add);
+                    self.prog.mark_opcode(self.ptr, Opcode::Add);
                     *self.param_mut(3)? = self.param(1)? + self.param(2)?;
                     self.ptr += 4;
                 }
                 2 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Multiply);
+                    self.prog.mark_opcode(self.ptr, Opcode::Multiply);
                     *self.param_mut(3)? = self.param(1)? * self.param(2)?;
                     self.ptr += 4;
                 }
                 3 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Input);
+                    self.prog.mark_opcode(self.ptr, Opcode::Input);
                     if let Some(input) = self.input.pop_front() {
                         *self.param_mut(1)? = input;
                         self.ptr += 2;
@@ -130,13 +133,13 @@ impl<'a> Computer<'a> {
                     }
                 }
                 4 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Output);
+                    self.prog.mark_opcode(self.ptr, Opcode::Output);
                     let output = self.param(1)?;
                     self.ptr += 2;
                     break Ok(State::Yielded(output));
                 }
                 5 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::JumpNonZero);
+                    self.prog.mark_opcode(self.ptr, Opcode::JumpNonZero);
                     // Make sure to read this parameter so it gets marked.
                     let addr = self.param(2)?;
                     if self.param(1)? != 0 {
@@ -146,7 +149,7 @@ impl<'a> Computer<'a> {
                     }
                 }
                 6 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::JumpZero);
+                    self.prog.mark_opcode(self.ptr, Opcode::JumpZero);
                     // Make sure to read this parameter so it gets marked.
                     let addr = self.param(2)?;
                     if self.param(1)? == 0 {
@@ -156,22 +159,22 @@ impl<'a> Computer<'a> {
                     }
                 }
                 7 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::LessThan);
+                    self.prog.mark_opcode(self.ptr, Opcode::LessThan);
                     *self.param_mut(3)? = (self.param(1)? < self.param(2)?) as i64;
                     self.ptr += 4;
                 }
                 8 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Equal);
+                    self.prog.mark_opcode(self.ptr, Opcode::Equal);
                     *self.param_mut(3)? = (self.param(1)? == self.param(2)?) as i64;
                     self.ptr += 4;
                 }
                 9 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::AdjustRelativeBase);
+                    self.prog.mark_opcode(self.ptr, Opcode::AdjustRelativeBase);
                     self.relative_base += self.param(1)?;
                     self.ptr += 2;
                 }
                 99 => {
-                    self.mem.mark_opcode(self.ptr, Opcode::Halt);
+                    self.prog.mark_opcode(self.ptr, Opcode::Halt);
                     break Ok(State::Complete);
                 }
                 opcode => break Err(Error::UnknownOpcode { opcode }),
@@ -180,7 +183,7 @@ impl<'a> Computer<'a> {
     }
 
     fn reset(&mut self) {
-        self.mem.reset();
+        self.mem = self.prog.original();
         self.ptr = 0;
         self.relative_base = 0;
         self.input = VecDeque::new();

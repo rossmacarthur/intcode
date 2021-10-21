@@ -59,11 +59,12 @@ fn iter_labels() -> impl Iterator<Item = Label> {
 fn get_labeled_addr(p: &Program, i: usize) -> Option<usize> {
     let slot = p.slots.get(i)?;
 
-    // We only care about addresses that exist in the original program.
     // Exclude 0 because its often used as a placeholder value.
-    let addr = || match slot.original {
-        Some(addr) if addr > 0 && p.get_original(addr as usize).is_some() => Some(addr as usize),
-        _ => None,
+    // Exclude addresses greater than the length of the program. These are valid
+    // but we can't label them.
+    let addr = || {
+        let addr = slot.value as usize;
+        (0 < addr && addr < p.len()).then(|| slot.value as usize)
     };
 
     match slot.mark {
