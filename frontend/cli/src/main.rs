@@ -1,20 +1,23 @@
 mod fmt;
+mod log;
 mod run;
 
 use std::ffi::OsStr;
-use std::fmt::Display;
 use std::fs;
+use std::io;
+use std::io::prelude::*;
 use std::num::ParseIntError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::result;
+use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{AppSettings, Clap};
 use intcode::assemble::Intcode;
+use intcode::disassemble;
 use intcode::error::ErrorSet;
-use yansi::Paint;
 
 #[derive(Debug, Clone, Clap)]
 #[clap(
@@ -40,24 +43,33 @@ enum Opt {
         #[clap(long)]
         basic: bool,
     },
+    Unbuild {
+        #[clap()]
+        input: PathBuf,
+        #[clap(long, multiple_occurrences(true))]
+        feed: Vec<Feed>,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct Feed(Vec<i64>);
+
+impl FromStr for Feed {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> result::Result<Self, ParseIntError> {
+        parse_program(s).map(Self)
+    }
 }
 
 fn parse_program(input: &str) -> result::Result<Vec<i64>, ParseIntError> {
     input.trim().split(',').map(str::parse).collect()
 }
 
-fn eprint(header: &str, message: impl Display) {
-    if atty::is(atty::Stream::Stdout) {
-        eprintln!("{:>12} {}", Paint::green(header).bold(), message);
-    } else {
-        eprintln!("{:>12} {}", header, message);
-    }
-}
-
 fn assemble(path: &Path) -> Result<Vec<i64>> {
     let asm = fs::read_to_string(path)?;
     let fmt = fmt::Ansi::new(&asm, path);
-    eprint("Assembling", path.display());
+    log::info!("assembling {}", path.display());
     intcode::assemble::to_intcode(&asm)
         .map(|Intcode { output, warnings }| {
             for warning in warnings {
@@ -72,12 +84,7 @@ fn assemble(path: &Path) -> Result<Vec<i64>> {
             for error in errors {
                 eprintln!("{}", fmt.error(&error));
             }
-            eprintln!(
-                "{}{} could not assemble `{}`",
-                Paint::red("error").bold(),
-                Paint::default(":").bold(),
-                path.display()
-            );
+            log::error!("could not assemble `{}`", path.display());
             process::exit(1);
         })
 }
@@ -93,7 +100,7 @@ fn build(path: PathBuf, output: Option<PathBuf>) -> Result<()> {
             .collect::<Vec<_>>()
             .join(","),
     )?;
-    eprint("Finished", output.display());
+    log::info!("finished {}", output.display());
     Ok(())
 }
 
@@ -102,16 +109,11 @@ fn run(path: PathBuf, basic: bool) -> Result<()> {
         Some("s") => assemble(&path)?,
         Some("intcode") | None => parse_program(&fs::read_to_string(&path)?)?,
         Some(ext) => {
-            eprintln!(
-                "{}{} unrecognized file extension `{}`",
-                Paint::red("error").bold(),
-                Paint::default(":").bold(),
-                ext
-            );
+            log::error!("unrecognized file extension `{}`", ext);
             process::exit(1);
         }
     };
-    eprint("Running", path.display());
+    log::info!("running {}", path.display());
     if basic {
         run::basic(intcode)?;
     } else {
@@ -120,9 +122,26 @@ fn run(path: PathBuf, basic: bool) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
-    match Opt::parse() {
+fn unbuild(path: PathBuf, feeds: Vec<Feed>) -> Result<()> {
+    let intcode = parse_program(&fs::read_to_string(path)?)?;
+    let display = disassemble::to_ast(
+        intcode,
+        feeds
+            .into_iter()
+            .map(|Feed(i)| disassemble::Run::new().input(disassemble::Input::Static(i))),
+    )?
+    .to_string();
+    io::stdout().lock().write_all(display.as_bytes())?;
+    Ok(())
+}
+
+fn main() {
+    log::init();
+    if let Err(err) = match Opt::parse() {
         Opt::Build { input, output } => build(input, output),
         Opt::Run { input, basic } => run(input, basic),
+        Opt::Unbuild { input, feed } => unbuild(input, feed),
+    } {
+        log::error!("{:#}", err);
     }
 }

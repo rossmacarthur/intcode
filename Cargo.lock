@@ -160,6 +160,7 @@ name = "intcode"
 version = "0.0.0"
 dependencies = [
  "intcode-assemble",
+ "intcode-disassemble",
  "intcode-error",
  "intcode-run",
 ]
@@ -185,6 +186,7 @@ dependencies = [
  "clap",
  "clap_derive",
  "intcode",
+ "log",
  "yansi",
 ]
 
