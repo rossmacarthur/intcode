@@ -27,7 +27,7 @@ pub enum Mark {
 #[derive(Debug, Clone, Default)]
 pub struct Slot {
     /// The raw value in the original program.
-    pub value: i64,
+    pub raw: i64,
     /// An optional mark if we figure out what the memory looks like is.
     pub mark: Option<Mark>,
     /// An optional label if we add one.
@@ -40,7 +40,50 @@ pub struct Program {
     pub slots: Vec<Slot>,
 }
 
+impl Mode {
+    pub fn from_value(v: i64) -> Option<Mode> {
+        Some(match v {
+            0 => Self::Positional,
+            1 => Self::Immediate,
+            2 => Self::Relative,
+            _ => return None,
+        })
+    }
+}
+
 impl Opcode {
+    pub fn from_value(v: i64) -> Option<Opcode> {
+        Some(match v {
+            1 => Self::Add,
+            2 => Self::Multiply,
+            3 => Self::Input,
+            4 => Self::Output,
+            5 => Self::JumpNonZero,
+            6 => Self::JumpZero,
+            7 => Self::LessThan,
+            8 => Self::Equal,
+            9 => Self::AdjustRelativeBase,
+            99 => Self::Halt,
+            _ => return None,
+        })
+    }
+
+    pub fn params(&self) -> usize {
+        match self {
+            Self::Add => 3,
+            Self::Multiply => 3,
+            Self::Input => 1,
+            Self::Output => 1,
+            Self::JumpNonZero => 2,
+            Self::JumpZero => 2,
+            Self::LessThan => 3,
+            Self::Equal => 3,
+            Self::AdjustRelativeBase => 1,
+            Self::Halt => 0,
+            i => panic!("no params for `{:?}`", i),
+        }
+    }
+
     fn value(&self) -> i64 {
         match self {
             Self::Add => 1,
@@ -62,8 +105,8 @@ impl Program {
     pub fn new(intcode: Vec<i64>) -> Self {
         let slots = intcode
             .into_iter()
-            .map(|n| Slot {
-                value: n,
+            .map(|raw| Slot {
+                raw,
                 mark: None,
                 label: None,
             })
@@ -72,7 +115,7 @@ impl Program {
     }
 
     pub fn original(&self) -> Vec<i64> {
-        self.slots.iter().map(|slot| slot.value).collect()
+        self.slots.iter().map(|slot| slot.raw).collect()
     }
 
     pub fn len(&self) -> usize {
@@ -96,7 +139,7 @@ impl Program {
             // We are marking this address with an opcode that does not
             // match the original value, so this is also a "mutable"
             // opcode.
-            m @ None if slot.value % 100 != opcode.value() => {
+            m @ None if slot.raw % 100 != opcode.value() => {
                 *m = Some(Mark::Opcode(Opcode::Mutable))
             }
             // This address is unmarked, mark it with the given opcode.
@@ -120,7 +163,7 @@ impl Program {
             )
         }
         let slot = &mut self.slots[addr];
-        let mark = Mark::Param(Param::Number(mode, slot.value));
+        let mark = Mark::Param(Param::Number(mode, slot.raw));
         match &mut slot.mark {
             // This address is already marked with the same param 👍.
             Some(ref m) if *m == mark => {}
@@ -128,12 +171,10 @@ impl Program {
             m @ None => *m = Some(mark),
             // Otherwise, this is address is already marked as something
             // else, so we panic.
-            Some(m) => {
-                panic!(
-                    "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
-                    addr, mark, m
-                );
-            }
+            Some(m) => panic!(
+                "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
+                addr, mark, m
+            ),
         }
     }
 
@@ -215,10 +256,10 @@ impl Program {
                         Opcode::Mutable => {
                             let params: Vec<_> = iter::from_fn(|| {
                                 ptr += 1;
-                                self.get_param(ptr).map(|_| self.slots[ptr].value)
+                                self.get_param(ptr).map(|_| self.slots[ptr].raw)
                             })
                             .collect();
-                            Instr::Mutable(slot.value, params)
+                            Instr::Mutable(slot.raw, params)
                         }
                     };
                     stmts.push(Stmt {
@@ -229,12 +270,12 @@ impl Program {
                 None => {
                     // For now assume unmarked data is just raw bytes 🤷‍♂️
                     let label = slot.label.clone();
-                    let mut raw_params = vec![RawParam::Number(slot.value)];
+                    let mut raw_params = vec![RawParam::Number(slot.raw)];
                     raw_params.extend(iter::from_fn(|| {
                         ptr += 1;
                         match &self.slots.get(ptr) {
                             Some(Slot {
-                                value: original,
+                                raw: original,
                                 mark: None,
                                 label: None,
                                 ..

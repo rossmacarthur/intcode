@@ -85,20 +85,14 @@ impl<'a> Computer<'a> {
     fn param_ptr(&mut self, i: usize) -> Result<usize> {
         let opcode = self.mem_get(self.ptr);
         let ptr = self.ptr + i;
-        match opcode / (10i64.pow((1 + i) as u32)) % 10 {
-            0 => {
-                self.prog.mark_param(ptr, Mode::Positional);
-                Ok(cast(self.mem_get(ptr))?)
-            }
-            1 => {
-                self.prog.mark_param(ptr, Mode::Immediate);
-                Ok(ptr)
-            }
-            2 => {
-                self.prog.mark_param(ptr, Mode::Relative);
-                Ok(cast(self.relative_base + self.mem_get(ptr))?)
-            }
-            mode => Err(Error::UnknownMode { mode }),
+        let divs = [10, 100, 1_000, 10_000];
+        let mode = opcode / divs[i] % 10;
+        let mode = Mode::from_value(mode).ok_or_else(|| Error::UnknownMode { mode })?;
+        self.prog.mark_param(ptr, mode);
+        match mode {
+            Mode::Positional => Ok(cast(self.mem_get(ptr))?),
+            Mode::Immediate => Ok(ptr),
+            Mode::Relative => Ok(cast(self.relative_base + self.mem_get(ptr))?),
         }
     }
 

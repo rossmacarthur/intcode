@@ -57,14 +57,14 @@ fn iter_labels() -> impl Iterator<Item = Label> {
 }
 
 fn get_labeled_addr(p: &Program, i: usize) -> Option<usize> {
-    let slot = p.slots.get(i)?;
+    let slot = &p.slots[i];
 
     // Exclude 0 because its often used as a placeholder value.
     // Exclude addresses greater than the length of the program. These are valid
     // but we can't label them.
     let addr = || {
-        let addr = slot.value as usize;
-        (0 < addr && addr < p.len()).then(|| slot.value as usize)
+        let addr = slot.raw as usize;
+        (0 < addr && addr < p.len()).then(|| slot.raw as usize)
     };
 
     match slot.mark {
