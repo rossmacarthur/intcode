@@ -1,6 +1,5 @@
 mod fmt;
 
-use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::panic;
 use std::sync::Mutex;
