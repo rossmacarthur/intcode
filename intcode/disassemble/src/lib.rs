@@ -12,7 +12,6 @@ use crate::program::Program;
 /// Disassemble the intcode program into an AST that can be displayed.
 pub fn to_ast(intcode: Vec<i64>, runs: impl IntoIterator<Item = Run>) -> Result<Ast> {
     let mut p = Program::new(intcode);
-
     let mut labels = labels::unique();
 
     dynamically::mark(&mut p, runs)?;

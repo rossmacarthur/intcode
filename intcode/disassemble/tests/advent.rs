@@ -37,7 +37,7 @@ fn assert(asm: &str, intcode: &str, runs: impl IntoIterator<Item = Run>) {
 fn advent_day2_example1() {
     let asm = "\
 a: ADD b, c, a+3
-MUL a+3, d, 0
+MUL a+3, d, a
 HLT
 b: DB 30
 c: DB 40
@@ -147,11 +147,11 @@ b: DB 1
 #[test]
 fn advent_day9_example_quine() {
     let asm = "\
-ARB #1
+a: ARB #1
 OUT rb-1
 ADD 100, #1, 100
 EQ 100, #16, 101
-JZ 101, #0
+JZ 101, #a
 HLT
 ";
     let intcode = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";

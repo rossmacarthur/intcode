@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::iter;
 
 use crate::ast::{Ast, Instr, Label, Mode, Param, RawParam, Stmt};
@@ -18,31 +19,35 @@ pub enum Opcode {
     Mutable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LabelType {
-    /// The referrer was the second parameter in a jump instruction so this
-    /// address is likely to be an instruction.
-    Instr,
-    /// The referrer was a positional parameter so the address is likely to be
-    /// data.
-    Data,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mark {
     Opcode(Opcode),
     Param(Param),
+    String,
     Data,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Purpose {
+    Read,
+    Write,
+    Jump,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Mention {
+    pub purpose: Purpose,
+    pub referrer: usize,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Slot {
     /// The raw value in the original program.
     pub raw: i64,
-    /// An optional mark if we figure out what the memory looks like is.
+    /// An optional mark when we are confident about this memory location.
     pub mark: Option<Mark>,
-    /// An optional label type, this can be used to improve static analysis.
-    pub label_type: Option<LabelType>,
+    /// How this address is mentioned from other places in the program.
+    pub mentions: HashSet<Mention>,
     /// An optional label if we add one.
     pub label: Option<Label>,
 }
@@ -114,6 +119,38 @@ impl Opcode {
     }
 }
 
+impl Mention {
+    pub fn new(purpose: Purpose, referrer: usize) -> Self {
+        Self { purpose, referrer }
+    }
+}
+
+impl Slot {
+    pub fn is_marked(&self) -> bool {
+        self.mark.is_some()
+    }
+
+    pub fn is_unmarked(&self) -> bool {
+        self.mark.is_none()
+    }
+
+    pub fn is_unlabelled(&self) -> bool {
+        self.label.is_none()
+    }
+
+    pub fn has_rw_purpose(&self) -> bool {
+        self.mentions
+            .iter()
+            .any(|m| matches!(m.purpose, Purpose::Read | Purpose::Write))
+    }
+
+    pub fn has_jump_purpose(&self) -> bool {
+        self.mentions
+            .iter()
+            .any(|m| matches!(m.purpose, Purpose::Jump))
+    }
+}
+
 impl Program {
     pub fn new(intcode: Vec<i64>) -> Self {
         let slots = intcode
@@ -135,9 +172,38 @@ impl Program {
     }
 
     pub fn percent_marked(&self) -> f64 {
-        let count = self.slots.iter().filter(|slot| slot.mark.is_some()).count() as f64;
+        let count = self.slots.iter().filter(|s| s.is_marked()).count() as f64;
         let total = self.len() as f64;
         100.0 * count / total
+    }
+
+    pub fn mention(&mut self, addr: usize, mention: Mention) {
+        if addr >= self.len() {
+            return;
+        }
+        self.slots[addr].mentions.insert(mention);
+    }
+
+    pub fn mark(&mut self, addr: usize, mark: Mark) {
+        if addr >= self.len() {
+            panic!(
+                "tried to mark address `{}` as `{:?}` but it doesn't exist in the original",
+                addr, mark
+            )
+        }
+        let slot = &mut self.slots[addr];
+        match &mut slot.mark {
+            // This address is already marked with the same param 👍.
+            Some(m) if *m == mark => {}
+            // This address is unmarked, mark it with the given param.
+            m @ None => *m = Some(mark),
+            // Otherwise, this is address is already marked as something
+            // else, so we panic.
+            Some(m) => panic!(
+                "tried to mark address `{}` as `{:?}` but it is already marked with `{:?}`",
+                addr, mark, m
+            ),
+        }
     }
 
     pub fn mark_opcode(&mut self, addr: usize, opcode: Opcode) {
@@ -182,40 +248,7 @@ impl Program {
         }
         let slot = &mut self.slots[addr];
         let mark = Mark::Param(Param::Number(mode, slot.raw));
-        match &mut slot.mark {
-            // This address is already marked with the same param 👍.
-            Some(ref m) if *m == mark => {}
-            // This address is unmarked, mark it with the given param.
-            m @ None => *m = Some(mark),
-            // Otherwise, this is address is already marked as something
-            // else, so we panic.
-            Some(m) => panic!(
-                "tried to mark address `{}` with `{:?}`, but it is already marked with `{:?}`",
-                addr, mark, m
-            ),
-        }
-    }
-
-    pub fn mark_data(&mut self, addr: usize) {
-        if addr >= self.len() {
-            panic!(
-                "tried to mark address `{}` as data but it doesn't exist in the original",
-                addr
-            )
-        }
-        let slot = &mut self.slots[addr];
-        match &mut slot.mark {
-            // This address is already marked with the same param 👍.
-            Some(Mark::Data) => {}
-            // This address is unmarked, mark it with the given param.
-            m @ None => *m = Some(Mark::Data),
-            // Otherwise, this is address is already marked as something
-            // else, so we panic.
-            Some(m) => panic!(
-                "tried to mark address `{}` as data, but it is already marked with `{:?}`",
-                addr, m
-            ),
-        }
+        self.mark(addr, mark);
     }
 
     pub fn get_param(&self, addr: usize) -> Option<Param> {
@@ -223,6 +256,17 @@ impl Program {
             Some(Mark::Param(param)) => Some(param.clone()),
             _ => None,
         })
+    }
+
+    fn bucket_unlabelled(&self, mut ptr: usize, mark: Mark) -> Vec<i64> {
+        let mut v = vec![self.slots[ptr].raw];
+        ptr += 1;
+        while matches!(self.slots.get(ptr), Some(Slot { mark: Some(m), label: None, .. }) if *m == mark)
+        {
+            v.push(self.slots[ptr].raw);
+            ptr += 1;
+        }
+        v
     }
 
     pub fn into_ast(self) -> Ast {
@@ -307,29 +351,35 @@ impl Program {
                         instr,
                     });
                 }
-                Some(Mark::Data) => {
+
+                Some(m @ Mark::Param(_)) => {
+                    panic!("unexpected marked address {:?}", m);
+                }
+
+                Some(Mark::String) => {
+                    let bucket = self.bucket_unlabelled(ptr, Mark::String);
+                    ptr += bucket.len();
+                    let bytes: Vec<_> = bucket.into_iter().map(|raw| raw as u8).collect();
                     let label = slot.label.clone();
-                    let mut raw_params = vec![RawParam::Number(slot.raw)];
-                    raw_params.extend(iter::from_fn(|| {
-                        ptr += 1;
-                        match &self.slots.get(ptr) {
-                            Some(Slot {
-                                raw: original,
-                                mark: None,
-                                label: None,
-                                ..
-                            }) => Some(RawParam::Number(*original)),
-                            _ => None,
-                        }
-                    }));
+                    let param = String::from_utf8(bytes).unwrap();
+                    let instr = Instr::Data(vec![RawParam::String(param)]);
+                    stmts.push(Stmt { label, instr })
+                }
+
+                Some(Mark::Data) => {
+                    let bucket = self.bucket_unlabelled(ptr, Mark::Data);
+                    ptr += bucket.len();
+                    let raw_params: Vec<_> = bucket
+                        .into_iter()
+                        .map(|raw| RawParam::Number(raw))
+                        .collect();
+                    let label = slot.label.clone();
                     let instr = Instr::Data(raw_params);
                     stmts.push(Stmt { label, instr })
                 }
-                Some(mark) => {
-                    panic!("unexpected marked address {:?}", mark);
-                }
+
                 None => {
-                    panic!("unmarked address at {:?}", ptr);
+                    panic!("unmarked address `{}`", ptr);
                 }
             }
         }

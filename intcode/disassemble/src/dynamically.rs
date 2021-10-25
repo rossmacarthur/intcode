@@ -7,7 +7,7 @@ use std::result;
 use thiserror::Error;
 
 use crate::ast::Mode;
-use crate::program::{Opcode, Program};
+use crate::program::{Mention, Opcode, Program, Purpose};
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -82,7 +82,7 @@ impl<'a> Computer<'a> {
         self.mem.get_mut(addr).unwrap()
     }
 
-    fn param_ptr(&mut self, i: usize) -> Result<usize> {
+    fn param_ptr(&mut self, i: usize, purpose: Purpose) -> Result<usize> {
         let opcode = self.mem_get(self.ptr);
         let ptr = self.ptr + i;
         let divs = [10, 100, 1_000, 10_000];
@@ -90,35 +90,58 @@ impl<'a> Computer<'a> {
         let mode = Mode::from_value(mode).ok_or(Error::UnknownMode { mode })?;
         self.prog.mark_param(ptr, mode);
         match mode {
-            Mode::Positional => Ok(cast(self.mem_get(ptr))?),
-            Mode::Immediate => Ok(ptr),
-            Mode::Relative => Ok(cast(self.relative_base + self.mem_get(ptr))?),
+            Mode::Positional => {
+                let addr = cast(self.mem_get(ptr))?;
+                let mention = Mention::new(purpose, ptr);
+                self.prog.mention(addr, mention);
+                Ok(addr)
+            }
+            Mode::Immediate => {
+                // We don't need to mention the referrer here because immediate
+                // values refer to themselves.
+                Ok(ptr)
+            }
+            Mode::Relative => {
+                let addr = cast(self.relative_base + self.mem_get(ptr))?;
+                let mention = Mention::new(purpose, ptr);
+                self.prog.mention(addr, mention);
+                Ok(addr)
+            }
         }
     }
 
     fn param(&mut self, i: usize) -> Result<i64> {
-        self.param_ptr(i).map(move |ptr| self.mem_get(ptr))
+        self.param_ptr(i, Purpose::Read)
+            .map(move |addr| self.mem_get(addr))
     }
 
     fn param_mut(&mut self, i: usize) -> Result<&mut i64> {
-        self.param_ptr(i).map(move |ptr| self.mem_get_mut(ptr))
+        self.param_ptr(i, Purpose::Write)
+            .map(move |addr| self.mem_get_mut(addr))
+    }
+
+    fn jump_param(&mut self, i: usize) -> Result<usize> {
+        let addr = cast(self.param(i)?)?;
+        let mention = Mention::new(Purpose::Jump, self.ptr + i);
+        self.prog.mention(addr, mention);
+        Ok(addr)
     }
 
     fn next(&mut self) -> Result<State> {
         loop {
-            match self.mem_get(self.ptr) % 100 {
-                1 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Add);
+            let opcode = self.mem_get(self.ptr) % 100;
+            let opcode = Opcode::from_value(opcode).ok_or(Error::UnknownOpcode { opcode })?;
+            self.prog.mark_opcode(self.ptr, opcode);
+            match opcode {
+                Opcode::Add => {
                     *self.param_mut(3)? = self.param(1)? + self.param(2)?;
                     self.ptr += 4;
                 }
-                2 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Multiply);
+                Opcode::Multiply => {
                     *self.param_mut(3)? = self.param(1)? * self.param(2)?;
                     self.ptr += 4;
                 }
-                3 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Input);
+                Opcode::Input => {
                     if let Some(input) = self.input.pop_front() {
                         *self.param_mut(1)? = input;
                         self.ptr += 2;
@@ -126,52 +149,48 @@ impl<'a> Computer<'a> {
                         break Ok(State::Waiting);
                     }
                 }
-                4 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Output);
+                Opcode::Output => {
                     let output = self.param(1)?;
                     self.ptr += 2;
                     break Ok(State::Yielded(output));
                 }
-                5 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::JumpNonZero);
+                Opcode::JumpNonZero => {
                     // Make sure to read this parameter so it gets marked.
-                    let addr = self.param(2)?;
+                    let addr = self.jump_param(2)?;
                     if self.param(1)? != 0 {
-                        self.ptr = cast(addr)?;
+                        self.ptr = addr;
                     } else {
                         self.ptr += 3;
                     }
                 }
-                6 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::JumpZero);
+                Opcode::JumpZero => {
                     // Make sure to read this parameter so it gets marked.
-                    let addr = self.param(2)?;
+                    let addr = self.jump_param(2)?;
                     if self.param(1)? == 0 {
-                        self.ptr = cast(addr)?;
+                        self.ptr = addr;
                     } else {
                         self.ptr += 3;
                     }
                 }
-                7 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::LessThan);
+                Opcode::LessThan => {
                     *self.param_mut(3)? = (self.param(1)? < self.param(2)?) as i64;
                     self.ptr += 4;
                 }
-                8 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Equal);
+                Opcode::Equal => {
                     *self.param_mut(3)? = (self.param(1)? == self.param(2)?) as i64;
                     self.ptr += 4;
                 }
-                9 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::AdjustRelativeBase);
+                Opcode::AdjustRelativeBase => {
                     self.relative_base += self.param(1)?;
                     self.ptr += 2;
                 }
-                99 => {
-                    self.prog.mark_opcode(self.ptr, Opcode::Halt);
+                Opcode::Halt => {
                     break Ok(State::Complete);
                 }
-                opcode => break Err(Error::UnknownOpcode { opcode }),
+                _ => {
+                    // Opcode::from_value(..) doesn't yield any other variants
+                    unreachable!()
+                }
             }
         }
     }
