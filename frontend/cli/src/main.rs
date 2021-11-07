@@ -106,7 +106,7 @@ fn build(path: PathBuf, output: Option<PathBuf>) -> Result<()> {
 
 fn run(path: PathBuf, basic: bool) -> Result<()> {
     let intcode = match path.extension().and_then(OsStr::to_str) {
-        Some("s") => assemble(&path)?,
+        Some("ints") => assemble(&path)?,
         Some("intcode") | None => parse_program(&fs::read_to_string(&path)?)?,
         Some(ext) => {
             log::error!("unrecognized file extension `{}`", ext);
