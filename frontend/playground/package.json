@@ -3,12 +3,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "export": "next build && next export"
   },
   "dependencies": {
+    "@headlessui/react": "^1.4.2",
+    "@heroicons/react": "^1.0.5",
     "ace-builds": "^1.4.13",
     "brace": "^0.11.1",
     "next": "latest",
+    "raw-loader": "^4.0.2",
     "react": "^17.0.2",
     "react-ace": "^9.5.0",
     "react-dom": "^17.0.2"

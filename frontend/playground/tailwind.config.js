@@ -1,4 +1,25 @@
-const defaultTheme = require('tailwindcss/defaultTheme');
+const defaultTheme = require("tailwindcss/defaultTheme");
+
+const colors = {
+  transparent: "transparent",
+  current: "currentColor",
+  // Tomorrow Night Eighties
+  gray: {
+    darker: "#2d2d2d",
+    dark: "#393939",
+    DEFAULT: "#515151",
+    light: "#999999",
+    lighter: "#cccccc",
+    lightest: "#efefef",
+  },
+  red: "#f2777a",
+  orange: "#f99157",
+  yellow: "#ffcc66",
+  green: "#99cc99",
+  aqua: "#66cccc",
+  blue: "#6699cc",
+  purple: "#cc99cc",
+};
 
 module.exports = {
   mode: "jit",
@@ -7,26 +28,10 @@ module.exports = {
 
   theme: {
     extend: {
-      colors: {
-        // Tomorrow Night Eighties
-        gray: {
-          darker: '#2d2d2d',
-          dark: '#393939',
-          DEFAULT: '#515151',
-          light: '#999999',
-          lighter: '#cccccc',
-        },
-        red: '#f2777a',
-        orange: '#f99157',
-        yellow: '#ffcc66',
-        green: '#99cc99',
-        aqua: '#66cccc',
-        blue: '#6699cc',
-        purple: '#cc99cc',
-      },
+      colors: colors,
       fontFamily: {
-        mono: ["Source Code Pro", ...defaultTheme.fontFamily.mono]
-      }
-    }
-  }
+        mono: ["Source Code Pro", ...defaultTheme.fontFamily.mono],
+      },
+    },
+  },
 };
