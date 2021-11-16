@@ -16,10 +16,19 @@ const examples = [
 export default function Index() {
   const [example, setExample] = useState(examples[0]);
 
+  const onChange = (contents) => {
+    const example = examples.find(example => example.code === contents);
+    if (example) {
+      setExample(example);
+    } else {
+      setExample({ file: "" })
+    }
+  }
+
   return (
     <div class="h-screen w-screen bg-gray-lighter text-white flex flex-col">
       <Header example={example} setExample={setExample}/>
-      <Main contents={example.code}/>
+      <Main contents={example.code} onChange={onChange}/>
     </div>
   );
 }
@@ -59,7 +68,7 @@ function Examples({ selected, onChange }) {
   );
 }
 
-function Main({ contents }) {
+function Main({ contents, onChange }) {
   return (
     <div class="h-full grid grid-rows-5 md:grid-flow-col gap-2 m-2 mt-0 font-mono">
       <div class="row-span-5">
@@ -71,6 +80,7 @@ function Main({ contents }) {
           mode="assembly_intcode"
           theme="tomorrow_night_eighties"
           value={contents}
+          onChange={onChange}
         />
       </div>
 
