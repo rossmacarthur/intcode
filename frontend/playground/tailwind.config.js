@@ -32,6 +32,12 @@ module.exports = {
       fontFamily: {
         mono: ["Source Code Pro", ...defaultTheme.fontFamily.mono],
       },
+      animation: {
+        "spin-fast": "spin 0.5s linear infinite",
+      },
+      outline: {
+        blue: "2px solid #6699cc",
+      },
     },
   },
 };

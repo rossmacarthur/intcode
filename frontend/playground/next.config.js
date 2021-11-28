@@ -1,10 +1,11 @@
 module.exports = {
-  reactStrictMode: true, // was there by default
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.module.rules.push({
       test: /\.ints$/i,
       loader: "raw-loader",
     });
+    config.output.webassemblyModuleFilename = 'static/wasm/[modulehash].wasm'
+    config.experiments = { asyncWebAssembly: true }
     return config;
   },
 };
