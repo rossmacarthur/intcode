@@ -19,7 +19,7 @@ export default function Index() {
   const [example, setExample] = useState(examples[0]);
   const [computerState, setComputerState] = useState(intcode.State.COMPLETE);
 
-  const onChange = (contents) => {
+  const onEdited = (contents) => {
     const example = examples.find((example) => example.code === contents);
     if (example) {
       setExample(example);
@@ -30,6 +30,10 @@ export default function Index() {
 
   const onRun = () => {
     intcode.assemble(setComputerState, example.code);
+  };
+
+  const onCancel = () => {
+    intcode.cancel(setComputerState);
   };
 
   const onInput = (input) => {
@@ -43,45 +47,54 @@ export default function Index() {
         setExample={setExample}
         computerState={computerState}
         onRun={onRun}
+        onCancel={onCancel}
       />
       <Main
         contents={example.code}
         computerState={computerState}
-        onChange={onChange}
+        onEdited={onEdited}
         onInput={onInput}
       />
     </div>
   );
 }
 
-function Header({ example, setExample, computerState, onRun }) {
-  const disabled = computerState != intcode.State.COMPLETE;
-
+function Header({ example, setExample, computerState, onRun, onCancel }) {
   return (
     <div class="flex flex-row m-2 gap-1">
-      {disabled ? (
-        <button
-          class="w-24 p-2 rounded shadow-sm bg-purple transition-all
-                   font-mono text-white"
-          disabled
-        >
-          <span
-            class="inline-flex align-middle h-5 w-5 rounded-full
-                  border-white border-t-transparent border-2 animate-spin-fast"
-          ></span>
-        </button>
-      ) : (
-        <button
-          class="w-24 p-2 rounded shadow-sm bg-blue hover:bg-purple transition-all
-                font-mono text-white text-lg tracking-widest uppercase"
-          onClick={onRun}
-        >
-          Run
-        </button>
-      )}
+      <Button computerState={computerState} onRun={onRun} onCancel={onCancel} />
       <Examples selected={example} onChange={setExample} />
     </div>
   );
+}
+
+function Button({ computerState, onRun, onCancel }) {
+  switch (computerState) {
+    case (intcode.State.YIELDED, intcode.State.WAITING):
+      return (
+        <button
+          class="group w-28 p-2 rounded shadow-sm bg-purple transition-all
+              font-mono text-white text-md tracking-widest uppercase"
+          onClick={onCancel}
+        >
+          <span
+            class="group-hover:hidden inline-flex align-middle h-5 w-5 rounded-full
+                border-white border-t-transparent border-2 animate-spin-fast transition-all"
+          ></span>
+          <span class="hidden group-hover:inline transition-all">Cancel</span>
+        </button>
+      );
+    case intcode.State.COMPLETE:
+      return (
+        <button
+          class="w-28 p-2 rounded shadow-sm bg-blue hover:bg-purple transition-all
+              font-mono text-white text-md tracking-widest uppercase transition-all"
+          onClick={onRun}
+        >
+          <span>Run</span>
+        </button>
+      );
+  }
 }
 
 function Examples({ selected, onChange }) {
@@ -112,7 +125,7 @@ function Examples({ selected, onChange }) {
   );
 }
 
-function Main({ contents, onChange, computerState, onInput }) {
+function Main({ contents, onEdited, computerState, onInput }) {
   const onKeyUp = (e) => {
     if (e.key === "Enter") {
       const input = e.target.value;
@@ -132,7 +145,7 @@ function Main({ contents, onChange, computerState, onInput }) {
           mode="assembly_intcode"
           theme="tomorrow_night_eighties"
           value={contents}
-          onChange={onChange}
+          onChange={onEdited}
         />
       </div>
 

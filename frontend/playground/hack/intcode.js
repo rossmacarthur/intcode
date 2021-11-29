@@ -12,3 +12,7 @@ export async function assemble(setComputerState, code) {
 export async function next(setComputerState, input) {
   setComputerState(State.COMPLETE);
 }
+
+export async function cancel(setComputerState) {
+  setComputerState(State.COMPLETE);
+}
