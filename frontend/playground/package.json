@@ -1,10 +1,9 @@
 {
   "private": true,
   "scripts": {
-    "wasm-pack": "wasm-pack build --out-name=intcode ../wasm",
     "dev": "next dev",
-    "build": "yarn wasm-pack && next build",
-    "start": "yarn wasm-pack && next start",
+    "build": "next build",
+    "start": "next start",
     "export": "next build && next export"
   },
   "dependencies": {
@@ -13,10 +12,12 @@
     "ace-builds": "^1.4.13",
     "brace": "^0.11.1",
     "intcode": "file:./../wasm/pkg",
+    "intcode-wasm": "../wasm/pkg",
     "next": "latest",
     "raw-loader": "^4.0.2",
     "react": "^17.0.2",
-    "react-ace": "^9.5.0"
+    "react-ace": "^9.5.0",
+    "react-dom": "^17.0.2"
   },
   "devDependencies": {
     "autoprefixer": "^10.2.6",

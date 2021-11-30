@@ -2,7 +2,6 @@ import dynamic from "next/dynamic";
 import { useEffect, createRef, useState } from "react";
 import { Listbox } from "@headlessui/react";
 import { SelectorIcon } from "@heroicons/react/solid";
-import { ReflexContainer, ReflexSplitter, ReflexElement } from "react-reflex";
 
 import exampleHelloWorld from "../../../examples/hello-world.ints";
 import exampleEcho from "../../../examples/echo.ints";
@@ -19,8 +18,6 @@ const examples = [
   { file: "./examples/echo.ints", code: exampleEcho },
   { file: "./examples/function.ints", code: exampleFunction },
 ];
-
-const editor = null;
 
 export default function Index() {
   // The editor instance TODO: surely we can use useRef somehow???

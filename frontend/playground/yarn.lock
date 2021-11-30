@@ -68,15 +68,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.0.0, @babel/runtime@npm:^7.2.0":
-  version: 7.16.3
-  resolution: "@babel/runtime@npm:7.16.3"
-  dependencies:
-    regenerator-runtime: ^0.13.4
-  checksum: ab8ac887096d76185ddbf291d28fb976cd32473696dc497ad4905b784acbd5aa462533ad83a5c5104e10ead28c2e0e119840ee28ed8eff90dcdde9d57f916eda
-  languageName: node
-  linkType: hard
-
 "@babel/types@npm:7.15.0":
   version: 7.15.0
   resolution: "@babel/types@npm:7.15.0"
@@ -1621,13 +1612,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"get-node-dimensions@npm:^1.2.1":
-  version: 1.2.2
-  resolution: "get-node-dimensions@npm:1.2.2"
-  checksum: 1018db4004ead28c92c02cf5471c3b13572be67cc4dff763c0c7714b8edc370d8020806d3db0400aad87e7e9d3e99635e8582e81636b735a6013051c8e3a4b13
-  languageName: node
-  linkType: hard
-
 "get-orientation@npm:1.1.2":
   version: 1.1.2
   resolution: "get-orientation@npm:1.1.2"
@@ -1974,10 +1958,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"intcode-wasm@file:../wasm/pkg::locator=root-workspace-0b6124%40workspace%3A.":
+  version: 0.0.0
+  resolution: "intcode-wasm@file:../wasm/pkg#../wasm/pkg::hash=23c57c&locator=root-workspace-0b6124%40workspace%3A."
+  checksum: ef2819d455d222f497a9e203e795385065981abf7bade8c6d27896d602a4e831a727a90f73e0bc81514435fd626b20a898893f17bcf0f97f7484ab7fceca3cfd
+  languageName: node
+  linkType: hard
+
 "intcode@file:./../wasm/pkg::locator=root-workspace-0b6124%40workspace%3A.":
   version: 0.0.0
-  resolution: "intcode@file:./../wasm/pkg#./../wasm/pkg::hash=b7897b&locator=root-workspace-0b6124%40workspace%3A."
-  checksum: 12616cbe8369c2513be8581702e6dafd4c3f5eb835c610fc3598c765e7741042a2cc421859f83fd3947b5e8a4a132a5a4b41ede7da1c3e245e1747a37802fa7f
+  resolution: "intcode@file:./../wasm/pkg#./../wasm/pkg::hash=9ac664&locator=root-workspace-0b6124%40workspace%3A."
+  checksum: 79b6d0ab95a64f156b96bf4c0eba8fb1919e2cbbe8ce4cb247dd78d4a8a1af8cd1a96e00bf88a77a067693cc2ab683b8d4b846126297b5fd669b06d7a558f12d
   languageName: node
   linkType: hard
 
@@ -2372,13 +2363,6 @@ __metadata:
   version: 4.7.0
   resolution: "lodash.sortby@npm:4.7.0"
   checksum: db170c9396d29d11fe9a9f25668c4993e0c1331bcb941ddbd48fb76f492e732add7f2a47cfdf8e9d740fa59ac41bbfaf931d268bc72aab3ab49e9f89354d718c
-  languageName: node
-  linkType: hard
-
-"lodash.throttle@npm:^4.1.1":
-  version: 4.1.1
-  resolution: "lodash.throttle@npm:4.1.1"
-  checksum: 129c0a28cee48b348aef146f638ef8a8b197944d4e9ec26c1890c19d9bf5a5690fe11b655c77a4551268819b32d27f4206343e30c78961f60b561b8608c8c805
   languageName: node
   linkType: hard
 
@@ -3207,7 +3191,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prop-types@npm:^15.5.8, prop-types@npm:^15.6.2, prop-types@npm:^15.7.2":
+"prop-types@npm:^15.7.2":
   version: 15.7.2
   resolution: "prop-types@npm:15.7.2"
   dependencies:
@@ -3369,35 +3353,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-measure@npm:^2.0.2":
-  version: 2.5.2
-  resolution: "react-measure@npm:2.5.2"
-  dependencies:
-    "@babel/runtime": ^7.2.0
-    get-node-dimensions: ^1.2.1
-    prop-types: ^15.6.2
-    resize-observer-polyfill: ^1.5.0
-  peerDependencies:
-    react: ">0.13.0"
-    react-dom: ">0.13.0"
-  checksum: 75bd3cd74d96f3e83f0a42b8f59e8764e6a5eec994492e077c49a4fea0d0b27775a5154502aff2eee3f6af40650ce2e58ed18ac927a64013b14c9942cc9c4872
-  languageName: node
-  linkType: hard
-
-"react-reflex@npm:^4.0.3":
-  version: 4.0.3
-  resolution: "react-reflex@npm:4.0.3"
-  dependencies:
-    "@babel/runtime": ^7.0.0
-    lodash.throttle: ^4.1.1
-    prop-types: ^15.5.8
-    react-measure: ^2.0.2
-  peerDependencies:
-    react: ^16.0.0 || ^17.0.0
-  checksum: d952a9c21ba492304e165cc2402f43e357d213124eb68cb75dca2dfd75b7d102c97f276d7d3208091fc1b84786d455cacc093327bff440408960d5e0e5932ef9
-  languageName: node
-  linkType: hard
-
 "react-refresh@npm:0.8.3":
   version: 0.8.3
   resolution: "react-refresh@npm:0.8.3"
@@ -3480,13 +3435,6 @@ __metadata:
   version: 0.13.9
   resolution: "regenerator-runtime@npm:0.13.9"
   checksum: 65ed455fe5afd799e2897baf691ca21c2772e1a969d19bb0c4695757c2d96249eb74ee3553ea34a91062b2a676beedf630b4c1551cc6299afb937be1426ec55e
-  languageName: node
-  linkType: hard
-
-"resize-observer-polyfill@npm:^1.5.0":
-  version: 1.5.1
-  resolution: "resize-observer-polyfill@npm:1.5.1"
-  checksum: 57e7f79489867b00ba43c9c051524a5c8f162a61d5547e99333549afc23e15c44fd43f2f318ea0261ea98c0eb3158cca261e6f48d66e1ed1cd1f340a43977094
   languageName: node
   linkType: hard
 
@@ -3583,13 +3531,13 @@ __metadata:
     autoprefixer: ^10.2.6
     brace: ^0.11.1
     intcode: "file:./../wasm/pkg"
+    intcode-wasm: ../wasm/pkg
     next: latest
     postcss: ^8.3.5
     raw-loader: ^4.0.2
     react: ^17.0.2
     react-ace: ^9.5.0
     react-dom: ^17.0.2
-    react-reflex: ^4.0.3
     tailwindcss: ^2.2.4
   languageName: unknown
   linkType: soft

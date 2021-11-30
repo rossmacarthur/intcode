@@ -1,4 +1,8 @@
 module.exports = {
+  assetPrefix: process.env.BASE_PATH || "",
+  publicRuntimeConfig: {
+    basePath: process.env.BASE_PATH || "",
+  },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.module.rules.push({
       test: /\.ints$/i,

@@ -1,4 +1,4 @@
-name: web
+name: playground
 
 on: [workflow_dispatch]
 
@@ -25,15 +25,18 @@ jobs:
     - uses: extractions/setup-crate@v1
       with:
         owner: rustwasm
-        name: wasm-bindgen
+        name: wasm-pack
 
     - name: Build
       run: |
-        npm ci --prefix frontend/web
-        npm run --prefix frontend/web build -- \
-          --public-url https://rossmacarthur.github.io/intcode
-        rm -r gh-pages/*
-        cp frontend/web/dist/* gh-pages/
+        cd frontend/playground
+        wasm-pack build --out-name=intcode ../wasm
+        yarn add ../wasm/pkg
+        yarn install
+        BASE_PATH="/intcode" yarn export
+        cd -
+        rm -rf gh-pages/*
+        cp -R frontend/playground/out/* gh-pages/
         touch gh-pages/.nojekyll
 
     - name: Calculate Git short SHA
