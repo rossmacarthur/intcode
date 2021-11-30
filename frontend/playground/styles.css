@@ -1,5 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap');
 
+.auto {
+    @apply h-full w-full min-h-0 min-w-0
+}
+
 #editor {
-    @apply font-mono rounded-md shadow
+    @apply font-mono rounded-b-md
+}
+
+.hl-error {
+    @apply text-red
+}
+
+.hl-warning {
+    @apply text-yellow
+}
+
+.hl-blue {
+    @apply text-blue
+}
+
+.hl-white {
+    @apply text-white
 }

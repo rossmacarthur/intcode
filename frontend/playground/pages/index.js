@@ -1,13 +1,18 @@
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, createRef, useState } from "react";
 import { Listbox } from "@headlessui/react";
 import { SelectorIcon } from "@heroicons/react/solid";
-
-import * as intcode from "../hack/intcode";
+import { ReflexContainer, ReflexSplitter, ReflexElement } from "react-reflex";
 
 import exampleHelloWorld from "../../../examples/hello-world.ints";
 import exampleEcho from "../../../examples/echo.ints";
 import exampleFunction from "../../../examples/function.ints";
+
+export const State = {
+  WAITING: 1,
+  COMPLETE: 2,
+};
+Object.freeze(State);
 
 const examples = [
   { file: "./examples/hello-world.ints", code: exampleHelloWorld },
@@ -15,10 +20,40 @@ const examples = [
   { file: "./examples/function.ints", code: exampleFunction },
 ];
 
-export default function Index() {
-  const [example, setExample] = useState(examples[0]);
-  const [computerState, setComputerState] = useState(intcode.State.COMPLETE);
+const editor = null;
 
+export default function Index() {
+  // The editor instance TODO: surely we can use useRef somehow???
+  const [editor, setEditor] = useState(null);
+  // The intcode WASM module instance
+  const [wasm, setWasm] = useState(null);
+  // The currently selected example
+  const [example, setExample] = useState(examples[0]);
+  // The state of the computer
+  const [state, setState] = useState(State.COMPLETE);
+  // The output panel
+  const [output, setOutput] = useState({
+    compiledIntcode: "",
+    compilerOutput: "",
+    programOutput: [],
+  });
+
+  // Loads the WASM module
+  useEffect(() => {
+    const f = async () => {
+      const instance = await import("../../wasm/pkg");
+      instance.init();
+      setWasm(instance);
+    };
+    f();
+  });
+
+  // Called when the editor is loaded
+  const onLoad = (editor) => {
+    setEditor(editor);
+  };
+
+  // Called when the contents of the editor change
   const onEdited = (contents) => {
     const example = examples.find((example) => example.code === contents);
     if (example) {
@@ -28,49 +63,86 @@ export default function Index() {
     }
   };
 
+  // Called when the user clicks the "Run" button
   const onRun = () => {
-    intcode.assemble(setComputerState, example.code);
+    setState(State.WAITING);
+
+    const result = wasm.assemble(editor.getValue());
+    if (result.state == "Failed") {
+      setOutput({
+        compiledIntcode: result.intcode,
+        compilerOutput: result.output,
+      });
+      setState(State.COMPLETE);
+      return;
+    }
+
+    const result2 = wasm.next(null);
+    setOutput({
+      compiledIntcode: result.intcode,
+      compilerOutput: result.output,
+      programOutput: [result2.output],
+    });
+    if (result2.state == "Complete") {
+      setState(State.COMPLETE);
+    }
+    // Machine wants input, leave in WAITING state
   };
 
+  // Cancelled when the user clicks the "Cancel" button
   const onCancel = () => {
-    intcode.cancel(setComputerState);
+    setState(State.COMPLETE);
   };
 
+  // Called when the user inputs a value
   const onInput = (input) => {
-    intcode.next(setComputerState, input);
+    const result = wasm.next(input + "\n");
+    setOutput({
+      ...output,
+      programOutput: output.programOutput.concat(result.output),
+    });
+    if (result.state == "Complete") {
+      setState(State.COMPLETE);
+    }
+    // Machine still wants input, leave in WAITING state
   };
 
   return (
-    <div class="h-screen w-screen bg-gray-lighter text-white flex flex-col">
+    <div class="h-screen w-screen flex flex-col bg-gray-lighter text-white font-mono">
       <Header
         example={example}
-        setExample={setExample}
-        computerState={computerState}
+        setExample={(e) => {
+          setExample(e);
+          setState(State.COMPLETE);
+        }}
+        state={state}
         onRun={onRun}
         onCancel={onCancel}
       />
       <Main
         contents={example.code}
-        computerState={computerState}
+        state={state}
+        onLoad={onLoad}
         onEdited={onEdited}
         onInput={onInput}
+        output={output}
       />
     </div>
   );
 }
 
-function Header({ example, setExample, computerState, onRun, onCancel }) {
+function Header({ example, setExample, state, onRun, onCancel }) {
   return (
-    <div class="flex flex-row m-2 gap-1">
-      <Button computerState={computerState} onRun={onRun} onCancel={onCancel} />
+    <div class="flex flex-row p-2 pb-0 gap-1">
+      <Button state={state} onRun={onRun} onCancel={onCancel} />
       <Examples selected={example} onChange={setExample} />
     </div>
   );
 }
 
-function Button({ computerState, onRun, onCancel }) {
-  switch (computerState) {
-    case (intcode.State.YIELDED, intcode.State.WAITING):
+function Button({ state, onRun, onCancel }) {
+  switch (state) {
+    case State.WAITING:
       return (
         <button
           class="group w-28 p-2 rounded shadow-sm bg-purple transition-all
@@ -84,7 +156,7 @@ function Button({ computerState, onRun, onCancel }) {
           <span class="hidden group-hover:inline transition-all">Cancel</span>
         </button>
       );
-    case intcode.State.COMPLETE:
+    case State.COMPLETE:
       return (
         <button
           class="w-28 p-2 rounded shadow-sm bg-blue hover:bg-purple transition-all
@@ -125,48 +197,83 @@ function Examples({ selected, onChange }) {
   );
 }
 
-function Main({ contents, onEdited, computerState, onInput }) {
+function Main(props) {
   const onKeyUp = (e) => {
     if (e.key === "Enter") {
       const input = e.target.value;
       e.target.value = "";
-      onInput(input);
+      props.onInput(input);
     }
   };
 
   return (
-    <div class="h-full grid grid-rows-5 md:grid-cols-7 gap-2 m-2 mt-0 font-mono">
-      <div class="row-span-5 md:col-span-4">
-        <Editor
-          height="100%"
-          width="100%"
-          fontSize="1rem"
-          name="editor"
-          mode="assembly_intcode"
-          theme="tomorrow_night_eighties"
-          value={contents}
-          onChange={onEdited}
-        />
+    <div class="grid auto md:grid-cols-7 gap-2 p-2 font-mono">
+      <div class="flex flex-col col-span-4 auto">
+        <div class="flex-none p-2 rounded-t-md bg-gray-dark text-gray-light text-sm uppercase tracking-widest">
+          Editor
+        </div>
+        <div class="flex-grow">
+          <Editor
+            height="100%"
+            width="100%"
+            fontSize="1rem"
+            name="editor"
+            mode="assembly_intcode"
+            theme="tomorrow_night_eighties"
+            onLoad={props.onLoad}
+            value={props.contents}
+            onChange={props.onEdited}
+          />
+        </div>
       </div>
 
-      <div class="row-span-2 md:col-span-3 h-56 md:h-full rounded-md shadow bg-gray-darker text-blue overflow-scroll">
-        <div class="flex p-2 bg-gray-dark">Output</div>
-      </div>
+      <div class="flex flex-col col-span-3 auto">
+        <div class="flex-none p-2 rounded-t-md bg-gray-dark text-gray-light text-sm uppercase tracking-widest">
+          Output
+        </div>
 
-      <div class="row-span-3 md:col-span-3 flex flex-col h-56 md:h-full rounded-md shadow bg-gray-darker text-purple overflow-scroll">
-        <div class="flex p-2 bg-gray-dark">Terminal</div>
-        <div class="flex-grow"></div>
-        <div class="p-2">
-          {computerState == intcode.State.WAITING && (
-            <input
-              class="w-full block py-1 px-2 rounded focus:outline-blue bg-gray text-white"
-              type="text"
-              name="name"
-              autoFocus
-              autoComplete="off"
-              onKeyUp={onKeyUp}
-            />
-          )}
+        <div class="flex-grow p-2 rounded-b-md bg-gray-darker text-gray-light text-md overflow-scroll">
+          <div class="flex flex-col gap-4">
+            {props.output.compiledIntcode && (
+              <div>
+                <p class="text-green">Compiled intcode:</p>
+                <p class="break-all">{props.output.compiledIntcode}</p>
+              </div>
+            )}
+
+            {props.output.compilerOutput && (
+              <div>
+                <pre
+                  dangerouslySetInnerHTML={{
+                    __html: props.output.compilerOutput,
+                  }}
+                ></pre>
+              </div>
+            )}
+
+            {props.output.compiledIntcode && (
+              <div>
+                <p class="text-green">Program output:</p>
+                {props.output.programOutput.map((item) => (
+                  <pre>{item}</pre>
+                ))}
+              </div>
+            )}
+
+            {props.state == State.WAITING && (
+              <div>
+                <p class="text-yellow pb-2">Program input:</p>
+                <input
+                  class="w-full block py-1 px-2 rounded-sm focus:outline-blue bg-gray text-white"
+                  type="text"
+                  name="name"
+                  autoFocus
+                  autoComplete="off"
+                  onKeyUp={onKeyUp}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
