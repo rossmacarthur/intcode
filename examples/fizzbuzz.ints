@@ -1,0 +1,53 @@
+ARB #end+11          ; allocate 10 addresses for the stack
+
+
+
+    ; function call
+    IN            rb-2    ; push the first parameter to the stack
+    IN            rb-3    ; push the second parameter to the stack
+    ADD #ret, #0, rb-4    ; push the return address to the stack
+    ARB #-4               ; stack frame done
+    JZ #0, #is_div        ; call `is_div`
+ret:
+    OUT rb-1
+
+HLT
+
+ADD #1, #0, rb-1
+loop:
+    LT  #100, rb-1, ip+1
+    JZ  #_, #end
+
+
+    OUT rb-1
+
+    ADD rb-1, #1, rb-1
+    JZ  #0, #loop
+
+end:
+    HLT
+
+; Calculates whether `a` is divisible by `b`
+;
+; where
+;    rb+3 the return slot
+;    rb+2 is a
+;    rb+1 is b
+;    rb+0 is the return address
+is_div:
+    OUT rb+3
+    OUT rb+2
+    OUT rb+1
+    OUT rb+0
+
+    ADD rb+2, #0, rb-1         ; rem
+
+    is_div_loop:
+        LT  rb+1, rb-1, ip+1   ; if b < rem
+        JZ  #_,   #is_div_end  ; then go to end
+        MUL rb+1, #-1,  ip+2   ; else negate b
+        ADD rb-1, #_,   rb-1   ; and add to rem
+        JZ  #0,   #is_div_loop ; repeat
+    is_div_end:
+        LT #0, rb-1, rb+3
+        JZ #0, rb
